@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../lib/store';
 import { Search, User as UserIcon, Phone, Clock, AlertTriangle, MoreVertical, Car, Plus } from 'lucide-react';
-import { Vehicle } from '../types';
 
 export default function StaffVehicleList({ onSelectVehicle, onNewService }: { onSelectVehicle: (id: string) => void, onNewService?: () => void }) {
-  const { serviceOrders, getVehicleById, clients } = useAppStore();
+  const { serviceOrders, getVehicleById, clients, sendMessage, currentUser, role } = useAppStore();
   const [search, setSearch] = useState('');
 
   const activeOrders = serviceOrders.filter(o => o.status !== 'Finalizado' && o.status !== 'Retirada');
@@ -23,6 +22,23 @@ export default function StaffVehicleList({ onSelectVehicle, onNewService }: { on
       case 'Aguardando Peças': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
       default: return 'bg-white/10 text-white border-white/20';
     }
+  };
+
+  const lastUpdateLabel = (order: any) => {
+    const date = order.updates?.[0]?.date || order.updatedAt || order.createdAt;
+    return date ? new Date(date).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Sem atualização';
+  };
+
+  const notifyClientReady = async (order: any) => {
+    const vehicle = getVehicleById(order.vehicleId);
+    await sendMessage({
+      clientId: order.clientId,
+      senderId: currentUser?.id || 'system',
+      senderRole: role || 'STAFF',
+      title: 'Veículo pronto para retirada',
+      content: `Seu veículo ${vehicle?.model || ''} está pronto. Acompanhe os detalhes pelo painel do cliente.`,
+      type: 'success'
+    });
   };
 
   return (
@@ -90,7 +106,7 @@ export default function StaffVehicleList({ onSelectVehicle, onNewService }: { on
                     </h3>
                     <p className="text-[10px] font-mono tracking-widest text-white/40 uppercase">{vehicle?.plate}</p>
                   </div>
-                  <button className="text-white/40 hover:text-white transition-colors p-1">
+                  <button onClick={() => onSelectVehicle(order.id)} className="text-white/40 hover:text-white transition-colors p-1" title="Abrir detalhes">
                     <MoreVertical className="w-5 h-5" />
                   </button>
                 </div>
@@ -135,10 +151,10 @@ export default function StaffVehicleList({ onSelectVehicle, onNewService }: { on
                 </div>
 
                 <div className="mt-auto flex items-center justify-between pt-4 border-t border-white/5">
-                  <span className="text-[10px] text-white/30 italic">Última atualização: hoje</span>
+                  <span className="text-[10px] text-white/30 italic">Última atualização: {lastUpdateLabel(order)}</span>
                   
                   {order.status === 'Pronto' ? (
-                      <button className="border border-white/20 text-white font-bold py-2 px-6 rounded-lg hover:bg-white/10 transition-colors text-sm">
+                      <button onClick={() => notifyClientReady(order)} className="border border-white/20 text-white font-bold py-2 px-6 rounded-lg hover:bg-white/10 transition-colors text-sm">
                         Avisar cliente
                       </button>
                   ) : (

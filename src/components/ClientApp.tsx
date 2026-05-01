@@ -6,10 +6,11 @@ import { STATUS_SEQUENCE } from './StaffVehicleDetail';
 export default function ClientApp() {
   const { logout, currentUser, vehicles, serviceOrders, messages, markMessageAsRead } = useAppStore();
   const [activeTab, setActiveTab] = useState('Garagem');
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   
   // Find the service orders belonging to this client
   const clientOrders = serviceOrders.filter(o => o.clientId === currentUser?.id);
-  const activeOrder = clientOrders.length > 0 ? clientOrders[0] : null;
+  const activeOrder = clientOrders.find(order => order.id === selectedOrderId) || (clientOrders.length > 0 ? clientOrders[0] : null);
   const activeVehicle = activeOrder ? vehicles.find(v => v.id === activeOrder.vehicleId) : null;
   
   const unreadCount = messages.filter(m => !m.read).length;
@@ -55,7 +56,7 @@ export default function ClientApp() {
               <div className="space-y-6">
                 <div 
                   className="bg-[var(--color-card-bg)] border border-white/5 rounded-[2rem] overflow-hidden shadow-xl cursor-pointer group hover:border-[var(--color-brand-red)]/50 transition-all block"
-                  onClick={() => setActiveTab('Detalhes')}
+                  onClick={() => { setSelectedOrderId(activeOrder?.id || null); setActiveTab('Detalhes'); }}
                 >
                   <div className="relative h-64 md:h-80 w-full bg-black">
                     <img 
@@ -91,6 +92,27 @@ export default function ClientApp() {
                     </div>
                   </div>
                 </div>
+                {clientOrders.length > 1 && (
+                  <div className="bg-[var(--color-card-bg)] border border-white/5 rounded-[2rem] p-4 space-y-3">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 px-2">Outras ordens</h3>
+                    {clientOrders.map(order => {
+                      const vehicle = vehicles.find(v => v.id === order.vehicleId);
+                      return (
+                        <button
+                          key={order.id}
+                          onClick={() => { setSelectedOrderId(order.id); setActiveTab('Detalhes'); }}
+                          className="w-full bg-black/30 border border-white/5 rounded-2xl p-4 text-left flex items-center justify-between gap-3 hover:border-[var(--color-brand-red)]/40 transition"
+                        >
+                          <div>
+                            <p className="font-bold text-white">{vehicle?.model || 'Veículo'}</p>
+                            <p className="text-xs text-white/40">{vehicle?.plate || '---'} - OS #{order.id.slice(-6).toUpperCase()}</p>
+                          </div>
+                          <span className="text-[10px] uppercase font-bold text-[var(--color-brand-red)]">{order.status}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ) : (
                <div className="bg-[var(--color-card-bg)] border border-white/5 rounded-[2rem] p-8 text-center text-white/50">

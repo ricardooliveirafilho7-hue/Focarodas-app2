@@ -116,11 +116,28 @@ export interface Budget {
   createdAt: string;
   approvedAt?: string;
   rejectedAt?: string;
+  updatedAt?: string;
+}
+
+export interface Payment {
+  id: string;
+  serviceOrderId?: string;
+  budgetId?: string;
+  clientId: string;
+  amount: number;
+  method: 'Dinheiro' | 'Pix' | 'Cartao' | 'Boleto' | 'Transferencia' | 'Outro';
+  status: 'Pendente' | 'Parcial' | 'Pago' | 'Cancelado';
+  paidAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Notification {
   id: string;
-  userId: string;
+  userId?: string;
+  clientId?: string;
+  serviceOrderId?: string;
   title: string;
   message: string;
   type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';

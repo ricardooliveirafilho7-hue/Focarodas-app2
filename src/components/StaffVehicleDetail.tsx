@@ -143,7 +143,7 @@ export default function StaffVehicleDetail({ orderId, onBack }: { orderId: strin
                 <div className="flex items-center gap-3">
                   <h3 className="font-bold text-lg text-white">Galeria de Serviço</h3>
                 </div>
-                <button className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-brand-red)] hover:text-white transition-colors flex items-center gap-1">
+                <button onClick={() => setIsUpdateModalOpen(true)} className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-brand-red)] hover:text-white transition-colors flex items-center gap-1">
                   Adicionar Fotos <Plus className="w-3 h-3" />
                 </button>
              </div>
@@ -155,10 +155,10 @@ export default function StaffVehicleDetail({ orderId, onBack }: { orderId: strin
                   </div>
                 ))}
                 
-                <div className="aspect-square bg-white/5 border border-white/10 border-dashed rounded-2xl flex flex-col items-center justify-center text-white/30 hover:bg-white/10 hover:text-white transition-colors cursor-pointer">
+                <button onClick={() => setIsUpdateModalOpen(true)} className="aspect-square bg-white/5 border border-white/10 border-dashed rounded-2xl flex flex-col items-center justify-center text-white/30 hover:bg-white/10 hover:text-white transition-colors cursor-pointer">
                   <Camera className="w-6 h-6 mb-2" />
                   <span className="text-xs font-bold">Nova foto</span>
-                </div>
+                </button>
              </div>
           </div>
 
@@ -195,7 +195,7 @@ export default function StaffVehicleDetail({ orderId, onBack }: { orderId: strin
                </div>
                <div>
                   <h4 className="font-bold text-white">{client?.name}</h4>
-                  {client?.isPremium && <span className="text-[10px] font-bold text-[var(--color-brand-red)] tracking-widest uppercase">Premium Member</span>}
+                  {client?.status === 'Ativo' && <span className="text-[10px] font-bold text-[var(--color-brand-red)] tracking-widest uppercase">Cliente Ativo</span>}
                </div>
              </div>
              

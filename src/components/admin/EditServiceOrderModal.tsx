@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../lib/store';
-import { X, Save, Image as ImageIcon, Plus, Clock, MessageSquare, FileText } from 'lucide-react';
+import { X, Save, Image as ImageIcon, Clock, MessageSquare, FileText } from 'lucide-react';
 import { ServiceOrder } from '../../types';
+import { fileToDataUrl, uploadVehiclePhoto } from '../../lib/imageUpload';
 
 export default function EditServiceOrderModal({ order, onClose }: { order: ServiceOrder, onClose: () => void }) {
   const { updateServiceOrder, addVehicleUpdate, getVehicleById } = useAppStore();
@@ -9,16 +10,44 @@ export default function EditServiceOrderModal({ order, onClose }: { order: Servi
   const [delivery, setDelivery] = useState(order.deliveryEstimate);
   const [internalNote, setInternalNote] = useState('');
   const [publicMessage, setPublicMessage] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   
   const vehicleInfo = getVehicleById(order.vehicleId);
 
-  const handleSave = async () => {
-    if (status !== order.status || publicMessage.trim() || internalNote.trim()) {
-      await addVehicleUpdate(order.id, status, publicMessage, internalNote, [], delivery, !!publicMessage);
-    } else if (delivery !== order.deliveryEstimate) {
-      await updateServiceOrder(order.id, { deliveryEstimate: delivery });
+  const handlePhotoSelect = async (files?: FileList | null) => {
+    if (!files?.length) return;
+    setErrorMsg('');
+    const selected = Array.from(files);
+    try {
+      const previews = await Promise.all(selected.map(file => fileToDataUrl(file)));
+      setPhotoFiles(prev => [...prev, ...selected]);
+      setPhotos(prev => [...prev, ...previews]);
+    } catch (error: any) {
+      setErrorMsg(error?.message || 'Nao foi possivel carregar as fotos.');
     }
-    onClose();
+  };
+
+  const handleSave = async () => {
+    setErrorMsg('');
+    setIsSaving(true);
+    try {
+      const uploadedPhotos = photoFiles.length
+        ? await Promise.all(photoFiles.map(file => uploadVehiclePhoto(file, `${vehicleInfo?.plate || order.id}-${order.id}`)))
+        : photos;
+      if (status !== order.status || publicMessage.trim() || internalNote.trim() || uploadedPhotos.length > 0) {
+        await addVehicleUpdate(order.id, status, publicMessage, internalNote, uploadedPhotos, delivery, !!publicMessage);
+      } else if (delivery !== order.deliveryEstimate) {
+        await updateServiceOrder(order.id, { deliveryEstimate: delivery });
+      }
+      onClose();
+    } catch (error: any) {
+      setErrorMsg(error?.message || 'Erro ao salvar OS.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -40,6 +69,11 @@ export default function EditServiceOrderModal({ order, onClose }: { order: Servi
         </div>
 
         <div className="p-6 md:p-8 overflow-y-auto flex-1 space-y-8 bg-gradient-to-b from-[#151515] to-[#111]">
+          {errorMsg && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-300 p-3 rounded-xl text-sm font-medium">
+              {errorMsg}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-[#1C1C1F] p-5 rounded-2xl border border-white/5 shadow-inner">
               <label className="text-[10px] uppercase text-white/40 font-bold tracking-widest mb-3 flex items-center gap-2 drop-shadow-md">
@@ -110,11 +144,19 @@ export default function EditServiceOrderModal({ order, onClose }: { order: Servi
             <label className="text-[10px] uppercase text-white/40 font-bold tracking-widest mb-3 flex items-center gap-2 drop-shadow-md">
                <ImageIcon size={14} /> Anexar Fotos
             </label>
-            <div className="h-32 bg-[#111] border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center text-white/40 hover:bg-white/5 hover:border-white/30 hover:text-white transition-all cursor-pointer">
+            <label className="h-32 bg-[#111] border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center text-white/40 hover:bg-white/5 hover:border-white/30 hover:text-white transition-all cursor-pointer">
               <ImageIcon size={32} className="mb-2 opacity-50" />
               <span className="text-sm font-bold uppercase tracking-widest">Upload de Fotos</span>
-              <span className="text-[10px] mt-1 opacity-50">Arraste ou clique</span>
-            </div>
+              <span className="text-[10px] mt-1 opacity-50">Toque para selecionar</span>
+              <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={e => handlePhotoSelect(e.target.files)} />
+            </label>
+            {photos.length > 0 && (
+              <div className="flex gap-3 overflow-x-auto hide-scrollbar mt-4">
+                {photos.map((photo, index) => (
+                  <img key={index} src={photo} alt="Preview" className="w-20 h-20 rounded-xl object-cover border border-white/10" />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -122,8 +164,8 @@ export default function EditServiceOrderModal({ order, onClose }: { order: Servi
           <button onClick={onClose} className="px-6 py-3 rounded-xl font-medium border border-white/10 bg-[#222] hover:bg-white/10 transition-colors text-white w-full sm:w-auto">
             Cancelar
           </button>
-          <button onClick={handleSave} className="btn-primary py-3 px-8 rounded-xl flex items-center justify-center gap-2 font-bold shadow-lg shadow-[var(--color-brand-red)]/20 w-full sm:w-auto">
-            <Save size={18} /> Salvar Nova Atualização
+          <button onClick={handleSave} disabled={isSaving} className="btn-primary py-3 px-8 rounded-xl flex items-center justify-center gap-2 font-bold shadow-lg shadow-[var(--color-brand-red)]/20 w-full sm:w-auto disabled:opacity-50">
+            <Save size={18} /> {isSaving ? 'Salvando...' : 'Salvar Nova Atualização'}
           </button>
         </div>
       </div>

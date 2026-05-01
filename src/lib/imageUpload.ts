@@ -20,6 +20,10 @@ export const uploadVehiclePhoto = async (file: File, vehicleHint: string) => {
   if (!file.type.startsWith('image/')) {
     throw new Error('Selecione um arquivo de imagem valido.');
   }
+  const maxSizeMb = 8;
+  if (file.size > maxSizeMb * 1024 * 1024) {
+    throw new Error(`A imagem deve ter no maximo ${maxSizeMb}MB.`);
+  }
 
   if (!isSupabaseConfigured) {
     return fileToDataUrl(file);

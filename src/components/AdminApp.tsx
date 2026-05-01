@@ -34,10 +34,20 @@ import Notifications from './admin/Notifications';
 type AdminRoute = 'dashboard' | 'serviceOrders' | 'clients' | 'vehicles' | 'budgets' | 'finance' | 'team' | 'reports' | 'notifications' | 'settings' | 'logs';
 
 export default function AdminApp() {
-  const { logout, currentUser } = useAppStore();
+  const { logout, currentUser, clients, vehicles, serviceOrders, messages, notifications } = useAppStore();
   const [currentRoute, setCurrentRoute] = useState<AdminRoute>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isNewServiceModalOpen, setIsNewServiceModalOpen] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState('');
+  const unreadCount = messages.filter(message => !message.read).length + notifications.filter(notification => !notification.read).length;
+
+  const globalResults = globalSearch.trim()
+    ? [
+        ...clients.filter(client => `${client.name} ${client.phone} ${client.login}`.toLowerCase().includes(globalSearch.toLowerCase())).slice(0, 3).map(client => ({ label: client.name, detail: 'Cliente', route: 'clients' as AdminRoute })),
+        ...vehicles.filter(vehicle => `${vehicle.model} ${vehicle.plate}`.toLowerCase().includes(globalSearch.toLowerCase())).slice(0, 3).map(vehicle => ({ label: vehicle.model, detail: vehicle.plate, route: 'vehicles' as AdminRoute })),
+        ...serviceOrders.filter(order => `${order.id} ${order.status} ${order.servicesFull}`.toLowerCase().includes(globalSearch.toLowerCase())).slice(0, 3).map(order => ({ label: `OS #${order.id.slice(-6).toUpperCase()}`, detail: order.status, route: 'serviceOrders' as AdminRoute }))
+      ].slice(0, 8)
+    : [];
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -151,15 +161,34 @@ export default function AdminApp() {
               <input 
                 type="text" 
                 placeholder="Buscar clientes, placas, OS..." 
+                value={globalSearch}
+                onChange={e => setGlobalSearch(e.target.value)}
                 className="bg-[#1C1C1F] border border-white/5 rounded-full pl-12 pr-4 py-2.5 text-sm focus:outline-none focus:border-[#E53935]/50 focus:bg-[#242428] transition-all w-72 placeholder:text-white/30"
               />
+              {globalResults.length > 0 && (
+                <div className="absolute right-0 mt-3 w-80 bg-[#151515] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50">
+                  {globalResults.map((result, index) => (
+                    <button
+                      key={`${result.route}-${index}`}
+                      onClick={() => {
+                        setCurrentRoute(result.route);
+                        setGlobalSearch('');
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 border-b border-white/5 last:border-b-0"
+                    >
+                      <p className="text-sm font-bold text-white">{result.label}</p>
+                      <p className="text-[10px] uppercase tracking-widest text-white/40">{result.detail}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <button 
                 onClick={() => setCurrentRoute('notifications')} 
                 className="text-white/40 hover:text-white relative p-2 hover:bg-white/5 rounded-full transition-colors"
             >
               <Bell size={20} />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-[#E53935] rounded-full shadow-[0_0_5px_rgba(229,57,53,1)]"></span>
+              {unreadCount > 0 && <span className="absolute top-1 right-1 min-w-2 h-2 bg-[#E53935] rounded-full shadow-[0_0_5px_rgba(229,57,53,1)]"></span>}
             </button>
           </div>
         </header>
