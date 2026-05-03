@@ -131,6 +131,14 @@ const authEmailFromLogin = (loginOrEmail: string) => {
   return `${cleanLogin(trimmed).replace(/[^a-z0-9]/g, '')}@focarodas.com`;
 };
 
+const DEV_ADMIN_ID = 'dev-admin-focarodas';
+const isDevTestLoginEnabled =
+  import.meta.env.DEV &&
+  import.meta.env.VITE_ENABLE_DEV_TEST_LOGIN === 'true';
+const devAdminLogin = cleanLogin(import.meta.env.VITE_DEV_ADMIN_LOGIN || '');
+const devAdminPassword = import.meta.env.VITE_DEV_ADMIN_PASSWORD || '';
+const isDevTestAdmin = (user: CurrentUser) => user?.id === DEV_ADMIN_ID;
+
 const upsertById = <T extends { id: string }>(items: T[], item: T): T[] => {
   const index = items.findIndex(existing => existing.id === item.id);
   if (index === -1) return [item, ...items];
@@ -255,6 +263,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function loadData() {
       if (!role || !currentUser) {
+        setIsReady(true);
+        return;
+      }
+
+      if (isDevTestAdmin(currentUser)) {
+        setIsUsingLocalFallback(false);
+        setDataError('Modo teste local ativo: login admin liberado sem salvamento local.');
         setIsReady(true);
         return;
       }
@@ -417,6 +432,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!inputLogin || !inputPass) return { success: false, error: 'Login ou senha inválidos.' };
 
     try {
+      if (
+        isDevTestLoginEnabled &&
+        panel === 'admin' &&
+        devAdminLogin &&
+        devAdminPassword &&
+        cleanLogin(inputLogin) === devAdminLogin &&
+        inputPass === devAdminPassword
+      ) {
+        setCurrentUser({
+          id: DEV_ADMIN_ID,
+          name: 'Administrador Foca Rodas',
+          login: 'focarodas',
+          email: 'focarodas@local.test',
+          role: 'Administrador',
+          active: true,
+          createdAt: new Date().toISOString()
+        } satisfies Employee);
+        setRole('ADMIN');
+        setDataError('Modo teste local ativo: login admin liberado sem salvamento local.');
+        return { success: true };
+      }
+
       if (!isSupabaseConfigured) {
         return { success: false, error: 'Supabase nao configurado. O login local foi removido para evitar dados que nao sincronizam entre dispositivos.' };
       }
