@@ -41,7 +41,7 @@ const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL |
   .replace(/\/rest\/v1\/?$/, '')
   .replace(/\/$/, '');
 
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const serviceRoleKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export const supabaseAdmin = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
@@ -59,7 +59,7 @@ export const assertServerEnv = () => {
     throw new Error('SUPABASE_URL ou VITE_SUPABASE_URL nao configurada.');
   }
   if (!serviceRoleKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY nao configurada.');
+    throw new Error('SUPABASE_SECRET_KEY ou SUPABASE_SERVICE_ROLE_KEY nao configurada.');
   }
 };
 
