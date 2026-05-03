@@ -1,6 +1,6 @@
-# Foca Rodas | Plataforma de Gestão
+# Foca Rodas | Plataforma de Gestao
 
-Aplicação Vite + React + TypeScript para gestão da Foca Rodas, com painel Admin, Funcionário e Cliente, Supabase Auth, Supabase Storage e APIs serverless para deploy na Vercel.
+Aplicacao Vite + React + TypeScript para gestao da Foca Rodas, com painel Admin, Funcionario e Cliente, Supabase Auth, Supabase Storage e APIs serverless para deploy na Vercel.
 
 ## Rodar localmente
 
@@ -9,13 +9,13 @@ npm install
 npm run dev
 ```
 
-Para testar também as APIs serverless locais, rode:
+Para testar tambem as APIs serverless locais, rode:
 
 ```bash
 npx vercel dev
 ```
 
-## Variáveis de ambiente
+## Variaveis de ambiente
 
 Front-end:
 
@@ -27,55 +27,46 @@ Back-end/API serverless:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
-Nunca coloque `SUPABASE_SERVICE_ROLE_KEY` no front-end. Ela só pode existir nas funções em `api/admin/*`.
+Nunca coloque `SUPABASE_SERVICE_ROLE_KEY` no front-end. Ela so pode existir nas funcoes em `api/admin/*`.
 
 ## Configurar Supabase
 
 1. Crie o projeto no Supabase.
 2. Execute `supabase-schema-v2.sql` no SQL Editor.
-3. Confirme as tabelas: `clients`, `employees`, `vehicles`, `service_orders`, `messages`, `audit_logs`, `notifications`, `budgets`, `budget_items` e `payments`.
-4. Confirme o bucket público `vehicle-photos` no Supabase Storage.
-5. Use o painel Admin para criar clientes e funcionários, pois as APIs criam o usuário no Supabase Auth e salvam o mesmo `id` nas tabelas públicas.
+3. Confirme as tabelas: `clients`, `employees`, `vehicles`, `service_orders`, `messages`, `audit_logs`, `notifications`, `budgets`, `budget_items`, `payments` e `company_settings`.
+4. Confirme o bucket privado `vehicle-photos` no Supabase Storage.
+5. Crie o primeiro administrador diretamente no Supabase Auth e na tabela `employees`; depois use o painel Admin para criar clientes e funcionarios.
 
 ## Configurar Vercel
 
-1. Importe o repositório na Vercel.
-2. Configure todas as variáveis de ambiente acima.
+1. Importe o repositorio na Vercel.
+2. Configure todas as variaveis de ambiente acima.
 3. Build command: `npm run build`.
-4. Rotas serverless usadas em produção:
+4. Rotas serverless usadas em producao:
    - `/api/admin/create-employee`
    - `/api/admin/update-employee`
    - `/api/admin/create-client`
    - `/api/admin/update-client`
-   - `/api/admin/ensure-test-admin`
-
-## Login de teste
-
-Admin de teste obrigatório:
-
-- Login: `focarodas`
-- Senha: `123456`
-
-Também é mantido suporte local para `admin / 123456`. Em produção, ao usar `focarodas / 123456`, a API `ensure-test-admin` tenta garantir um usuário real no Supabase Auth e um registro correspondente em `employees` com cargo `Administrador`.
 
 ## Checklist de teste
 
-1. Entrar no Admin com `focarodas / 123456`.
-2. Criar cliente, recarregar a página e confirmar persistência.
-3. Criar veículo com upload de foto, recarregar e confirmar persistência.
-4. Criar OS com cliente e veículo existentes.
-5. Criar OS com cliente novo e veículo novo.
-6. Atualizar status da OS, adicionar mensagem pública, nota interna e fotos.
-7. Entrar como cliente e confirmar que ele vê apenas os próprios dados.
-8. Criar funcionário e testar login pelo painel Funcionário.
-9. Testar filtros, busca global, notificações, orçamentos, financeiro e relatórios.
+1. Entrar no Admin com um usuario real do Supabase Auth que exista em `employees` como `Administrador` ou `Gerente`.
+2. Criar cliente, recarregar a pagina e confirmar persistencia em outro dispositivo.
+3. Criar veiculo com upload de foto, recarregar e confirmar persistencia.
+4. Criar OS com cliente e veiculo existentes.
+5. Criar OS com cliente novo e veiculo novo.
+6. Atualizar status da OS, adicionar mensagem publica, nota interna e fotos.
+7. Entrar como cliente e confirmar que ele ve apenas os proprios dados.
+8. Criar funcionario e testar login pelo painel Funcionario.
+9. Testar filtros, busca global, notificacoes, orcamentos, financeiro e relatorios.
 10. Rodar:
 
 ```bash
 npm run lint
+npm run typecheck
 npm run build
 ```
 
-## Persistência
+## Persistencia
 
-Quando Supabase está configurado, o app usa Supabase como fonte principal. O `localStorage` é usado apenas como fallback local sinalizado na UI. Se uma operação falhar no Supabase, o formulário permanece aberto ou a ação retorna erro claro em vez de fingir que salvou.
+O Supabase e a unica fonte da verdade. Dados operacionais, configuracoes e fotos nao sao salvos em `localStorage`; se o Supabase ou as APIs da Vercel estiverem indisponiveis, a operacao falha de forma explicita.

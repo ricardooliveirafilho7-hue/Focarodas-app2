@@ -5,6 +5,7 @@ import { Vehicle } from '../../types';
 import { fileToDataUrl, uploadVehiclePhoto } from '../../lib/imageUpload';
 import { useToast } from '../Toast';
 import { SkeletonCard } from '../SkeletonCard';
+import { SupabaseImage } from '../SupabaseImage';
 
 export default function Vehicles() {
   const { vehicles, clients, getClientById, createVehicle, updateVehicle } = useAppStore();
@@ -82,7 +83,7 @@ export default function Vehicles() {
     setIsSaving(true);
     try {
       const photo = photoFile
-        ? await uploadVehiclePhoto(photoFile, `${formData.plate || formData.model || formData.clientId}`)
+        ? await uploadVehiclePhoto(photoFile, `${formData.plate || formData.model || formData.clientId}`, formData.clientId)
         : formData.photo;
       const payload = { ...formData, photo };
 
@@ -155,7 +156,7 @@ export default function Vehicles() {
             >
               <div className="h-40 bg-[#111] relative overflow-hidden shrink-0">
                 {v.photo ? (
-                    <img src={v.photo} alt={v.model} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                    <SupabaseImage src={v.photo} alt={v.model} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                 ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
                         <Car size={32} className="text-white/10" />
@@ -253,7 +254,7 @@ export default function Vehicles() {
                     <label className="block text-xs font-semibold text-white/40 uppercase mb-2">Foto do Veiculo</label>
                     <label className="w-full min-h-32 bg-[#111] border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center gap-2 text-white/50 hover:text-white hover:border-[var(--color-brand-red)]/50 cursor-pointer transition-colors overflow-hidden">
                       {formData.photo ? (
-                        <img src={formData.photo} className="w-full h-36 object-cover" alt="Preview do veiculo" />
+                        <SupabaseImage src={formData.photo} className="w-full h-36 object-cover" alt="Preview do veiculo" />
                       ) : (
                         <>
                           <UploadCloud size={24} />

@@ -4,6 +4,7 @@ import { Search, Phone, Calendar, MessageSquare, Edit2, Car, Users, Plus, Key, X
 import { Client, Vehicle } from '../../types';
 import { fileToDataUrl, uploadVehiclePhoto } from '../../lib/imageUpload';
 import { SkeletonCard } from '../SkeletonCard';
+import { SupabaseImage } from '../SupabaseImage';
 
 import NewServiceModal from './NewServiceModal';
 const BookUser = Users;
@@ -39,7 +40,7 @@ function VehicleModal({ clientId, onClose, onSave }: { clientId: string, onClose
     setIsSaving(true);
     try {
       const photo = photoFile
-        ? await uploadVehiclePhoto(photoFile, `${formData.plate || formData.model || clientId}`)
+        ? await uploadVehiclePhoto(photoFile, `${formData.plate || formData.model || clientId}`, clientId)
         : formData.photo;
       await onSave({ ...formData, photo, clientId });
     } catch (error: unknown) {
@@ -94,7 +95,7 @@ function VehicleModal({ clientId, onClose, onSave }: { clientId: string, onClose
               <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2 ml-1">Foto do Veiculo <span className="lowercase font-normal text-white/30">(opcional)</span></label>
               <label className="w-full min-h-28 bg-[#111] border border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center gap-2 text-white/50 hover:text-white hover:border-[#E53935]/50 cursor-pointer transition-colors overflow-hidden">
                 {formData.photo ? (
-                  <img src={formData.photo} className="w-full h-40 object-cover" alt="Preview do veiculo" />
+                  <SupabaseImage src={formData.photo} className="w-full h-40 object-cover" alt="Preview do veiculo" />
                 ) : (
                   <>
                     <UploadCloud size={24} />
@@ -579,7 +580,7 @@ export default function Clients() {
                    {getClientVehicles(selectedClient.id).map((v, i) => (
                      <div key={v.id} className="bg-[#1C1C1F] border border-white/5 p-5 rounded-2xl flex items-center gap-5 shadow-inner animate-in slide-in-from-right-4 fade-in" style={{ animationDelay: `${i*100}ms`}}>
                         <div className="w-16 h-16 bg-[#111] border border-white/10 rounded-2xl flex items-center justify-center text-white/20 overflow-hidden shrink-0 shadow-inner">
-                           {v.photo ? <img src={v.photo} alt={v.model} className="w-full h-full object-cover" /> : <Car size={28} className="text-[#E53935]/50 drop-shadow-[0_0_10px_rgba(229,57,53,0.5)]" />}
+                           {v.photo ? <SupabaseImage src={v.photo} alt={v.model} className="w-full h-full object-cover" /> : <Car size={28} className="text-[#E53935]/50 drop-shadow-[0_0_10px_rgba(229,57,53,0.5)]" />}
                         </div>
                         <div className="flex-1 min-w-0 pr-4">
                           <p className="font-black text-lg tracking-tight text-white mb-2 truncate">{v.model}</p>

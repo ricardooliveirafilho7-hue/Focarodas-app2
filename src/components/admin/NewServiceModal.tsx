@@ -3,6 +3,7 @@ import { useAppStore } from '../../lib/store';
 import { X, Search, CheckCircle2, Car, Calendar, Info, UserPlus, ChevronRight, User, History, ClipboardList, UploadCloud } from 'lucide-react';
 import { Vehicle, Client, ServiceOrder, ServiceStatus } from '../../types';
 import { fileToDataUrl, uploadVehiclePhoto } from '../../lib/imageUpload';
+import { SupabaseImage } from '../SupabaseImage';
 
 export default function NewServiceModal({ onClose, defaultClientId }: { onClose: () => void, defaultClientId?: string }) {
   const { clients, vehicles, employees, createClient, createVehicle, createServiceOrder } = useAppStore();
@@ -118,7 +119,7 @@ export default function NewServiceModal({ onClose, defaultClientId }: { onClose:
         }
 
         const photo = newVehiclePhotoFile
-          ? await uploadVehiclePhoto(newVehiclePhotoFile, `${newVehicle.plate || newVehicle.model || finalClientId}`)
+          ? await uploadVehiclePhoto(newVehiclePhotoFile, `${newVehicle.plate || newVehicle.model || finalClientId}`, finalClientId)
           : newVehicle.photo.trim();
 
         const createdVehicle = await createVehicle({
@@ -328,7 +329,7 @@ export default function NewServiceModal({ onClose, defaultClientId }: { onClose:
                            className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-4 ${selectedVehicle?.id === v.id ? 'bg-[var(--color-brand-red)]/10 border-[var(--color-brand-red)]/50' : 'bg-[#222] border-white/5 hover:border-white/20'}`}
                          >
                             <div className="w-16 h-16 rounded-lg bg-[#111] overflow-hidden shrink-0 border border-white/5">
-                              {v.photo ? <img src={v.photo} alt={v.model} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/20"><Car size={24}/></div>}
+                              {v.photo ? <SupabaseImage src={v.photo} alt={v.model} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/20"><Car size={24}/></div>}
                             </div>
                             <div className="flex-1">
                                <h4 className="font-bold text-white text-lg leading-tight mb-1">{v.model}</h4>
@@ -388,7 +389,7 @@ export default function NewServiceModal({ onClose, defaultClientId }: { onClose:
                       </div>
                       {newVehicle.photo && (
                          <div className="md:col-span-2 mt-2 h-32 rounded-xl overflow-hidden border border-white/10">
-                            <img src={newVehicle.photo} className="w-full h-full object-cover" alt="Preview"/>
+                            <SupabaseImage src={newVehicle.photo} className="w-full h-full object-cover" alt="Preview"/>
                          </div>
                       )}
                     </div>

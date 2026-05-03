@@ -35,7 +35,7 @@ export default function EditServiceOrderModal({ order, onClose }: { order: Servi
     setIsSaving(true);
     try {
       const uploadedPhotos = photoFiles.length
-        ? await Promise.all(photoFiles.map(file => uploadVehiclePhoto(file, `${vehicleInfo?.plate || order.id}-${order.id}`)))
+        ? await Promise.all(photoFiles.map(file => uploadVehiclePhoto(file, `${vehicleInfo?.plate || order.id}-${order.id}`, order.clientId)))
         : photos;
       if (status !== order.status || publicMessage.trim() || internalNote.trim() || uploadedPhotos.length > 0) {
         await addVehicleUpdate(order.id, status, publicMessage, internalNote, uploadedPhotos, delivery, !!publicMessage);

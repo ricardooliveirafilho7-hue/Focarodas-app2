@@ -55,7 +55,7 @@ export default function StaffUpdateModal({ orderId, onClose }: { orderId: string
     setIsSaving(true);
     try {
       const uploadedPhotos = photoFiles.length
-        ? await Promise.all(photoFiles.map(file => uploadVehiclePhoto(file, `${vehicle.plate}-${order.id}`)))
+        ? await Promise.all(photoFiles.map(file => uploadVehiclePhoto(file, `${vehicle.plate}-${order.id}`, order.clientId)))
         : photos;
       await addVehicleUpdate(orderId, status, publicMessage, internalNote, uploadedPhotos, estimate, notify);
       onClose();

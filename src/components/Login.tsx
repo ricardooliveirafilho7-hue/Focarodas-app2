@@ -113,15 +113,6 @@ export default function Login() {
              </button>
            </form>
 
-           <div className="mt-6 pt-6 border-t border-white/5 text-center">
-             <p className="text-[10px] text-white/30 uppercase tracking-widest font-bold mb-3">Credenciais de Teste</p>
-             <div className="flex justify-center gap-4 text-xs text-white/50">
-                <div className="bg-[#111] border border-white/5 px-3 py-2 rounded-lg">
-                   <p className="mb-1"><span className="text-white/40">Login:</span> focarodas</p>
-                   <p><span className="text-white/40">Senha:</span> 123456</p>
-                </div>
-             </div>
-           </div>
         </div>
       </div>
     </div>

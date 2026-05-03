@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-type ApiResponse = {
+export type ApiResponse = {
   setHeader: (name: string, value: string) => void;
   status: (code: number) => { json: (body: unknown) => void; end?: () => void };
 };
@@ -63,7 +63,7 @@ export const assertServerEnv = () => {
   }
 };
 
-const ALLOWED_ORIGINS = [
+const DEFAULT_ALLOWED_ORIGINS = [
   'https://focarodas-app2.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000'
@@ -72,10 +72,15 @@ const ALLOWED_ORIGINS = [
 export const setCors = (res: ApiResponse, req?: ApiRequest) => {
   const originHeader = req?.headers?.origin;
   const origin = Array.isArray(originHeader) ? originHeader[0] || '' : originHeader || '';
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+  const originAllowList = allowedOrigins.length > 0 ? allowedOrigins : DEFAULT_ALLOWED_ORIGINS;
+  const allowedOrigin = originAllowList.includes(origin) ? origin : originAllowList[0];
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Vary', 'Origin');
 };
 

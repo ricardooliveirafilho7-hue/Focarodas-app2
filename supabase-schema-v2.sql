@@ -143,6 +143,18 @@ create table if not exists public.payments (
   updated_at timestamptz not null default timezone('utc'::text, now())
 );
 
+create table if not exists public.company_settings (
+  id text primary key default 'default',
+  company_name text,
+  document text,
+  phone text,
+  address text,
+  logo_path text,
+  updated_by uuid references public.employees(id) on delete set null,
+  created_at timestamptz not null default timezone('utc'::text, now()),
+  updated_at timestamptz not null default timezone('utc'::text, now())
+);
+
 create unique index if not exists clients_login_unique_idx on public.clients (lower(login));
 create unique index if not exists clients_email_unique_idx on public.clients (lower(email));
 create unique index if not exists employees_login_unique_idx on public.employees (lower(login));
@@ -177,6 +189,12 @@ before update on public.payments
 for each row
 execute function public.set_updated_at();
 
+drop trigger if exists company_settings_set_updated_at on public.company_settings;
+create trigger company_settings_set_updated_at
+before update on public.company_settings
+for each row
+execute function public.set_updated_at();
+
 alter table public.clients enable row level security;
 alter table public.employees enable row level security;
 alter table public.vehicles enable row level security;
@@ -187,6 +205,7 @@ alter table public.notifications enable row level security;
 alter table public.budgets enable row level security;
 alter table public.budget_items enable row level security;
 alter table public.payments enable row level security;
+alter table public.company_settings enable row level security;
 
 drop policy if exists "foca clients public test access" on public.clients;
 drop policy if exists "clients_self_read" on public.clients;
@@ -238,9 +257,13 @@ create policy "orders_employee_all" on public.service_orders
 
 drop policy if exists "foca messages public test access" on public.messages;
 drop policy if exists "messages_client_own" on public.messages;
+drop policy if exists "messages_client_mark_read" on public.messages;
 drop policy if exists "messages_employee_all" on public.messages;
 create policy "messages_client_own" on public.messages
   for select using (client_id = auth.uid());
+create policy "messages_client_mark_read" on public.messages
+  for update using (client_id = auth.uid())
+  with check (client_id = auth.uid());
 create policy "messages_employee_all" on public.messages
   for all using (
     exists (select 1 from public.employees where id = auth.uid() and active = true)
@@ -250,9 +273,13 @@ create policy "messages_employee_all" on public.messages
 
 drop policy if exists "foca notifications public test access" on public.notifications;
 drop policy if exists "notifications_client_own" on public.notifications;
+drop policy if exists "notifications_client_mark_read" on public.notifications;
 drop policy if exists "notifications_employee_all" on public.notifications;
 create policy "notifications_client_own" on public.notifications
   for select using (client_id = auth.uid() or client_id is null);
+create policy "notifications_client_mark_read" on public.notifications
+  for update using (client_id = auth.uid())
+  with check (client_id = auth.uid());
 create policy "notifications_employee_all" on public.notifications
   for all using (
     exists (select 1 from public.employees where id = auth.uid() and active = true)
@@ -293,37 +320,89 @@ create policy "payments_employee_all" on public.payments
     exists (select 1 from public.employees where id = auth.uid() and active = true)
   );
 
+drop policy if exists "company_settings_employee_read" on public.company_settings;
+drop policy if exists "company_settings_admin_write" on public.company_settings;
+create policy "company_settings_employee_read" on public.company_settings
+  for select using (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  );
+create policy "company_settings_admin_write" on public.company_settings
+  for all using (
+    exists (
+      select 1 from public.employees
+      where id = auth.uid() and active = true and role in ('Administrador', 'Gerente')
+    )
+  ) with check (
+    exists (
+      select 1 from public.employees
+      where id = auth.uid() and active = true and role in ('Administrador', 'Gerente')
+    )
+  );
+
 drop policy if exists "foca audit logs public test access" on public.audit_logs;
 drop policy if exists "logs_employee_read" on public.audit_logs;
 drop policy if exists "logs_insert_any_auth" on public.audit_logs;
+drop policy if exists "logs_insert_employee_self" on public.audit_logs;
 create policy "logs_employee_read" on public.audit_logs
   for select using (
     exists (select 1 from public.employees where id = auth.uid() and active = true)
   );
-create policy "logs_insert_any_auth" on public.audit_logs
-  for insert with check (auth.uid() is not null);
+create policy "logs_insert_employee_self" on public.audit_logs
+  for insert with check (
+    user_id = auth.uid()::text
+    and exists (select 1 from public.employees where id = auth.uid() and active = true)
+  );
 
 insert into storage.buckets (id, name, public)
-values ('vehicle-photos', 'vehicle-photos', true)
-on conflict (id) do update set public = true;
+values ('vehicle-photos', 'vehicle-photos', false)
+on conflict (id) do update set public = false;
 
 drop policy if exists "foca vehicle photos public read" on storage.objects;
-create policy "foca vehicle photos public read"
-on storage.objects for select
-using (bucket_id = 'vehicle-photos');
-
 drop policy if exists "foca vehicle photos public upload" on storage.objects;
-create policy "foca vehicle photos public upload"
-on storage.objects for insert
-with check (bucket_id = 'vehicle-photos');
-
 drop policy if exists "foca vehicle photos public update" on storage.objects;
-create policy "foca vehicle photos public update"
-on storage.objects for update
-using (bucket_id = 'vehicle-photos')
-with check (bucket_id = 'vehicle-photos');
-
 drop policy if exists "foca vehicle photos public delete" on storage.objects;
-create policy "foca vehicle photos public delete"
+drop policy if exists "vehicle photos scoped read" on storage.objects;
+drop policy if exists "vehicle photos employee upload" on storage.objects;
+drop policy if exists "vehicle photos employee update" on storage.objects;
+drop policy if exists "vehicle photos employee delete" on storage.objects;
+
+create policy "vehicle photos scoped read"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'vehicle-photos'
+  and (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+    or auth.uid()::text = (storage.foldername(name))[1]
+  )
+);
+
+create policy "vehicle photos employee upload"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'vehicle-photos'
+  and exists (select 1 from public.employees where id = auth.uid() and active = true)
+  and lower(storage.extension(name)) in ('jpg', 'jpeg', 'png', 'webp')
+);
+
+create policy "vehicle photos employee update"
+on storage.objects for update
+to authenticated
+using (
+  bucket_id = 'vehicle-photos'
+  and exists (select 1 from public.employees where id = auth.uid() and active = true)
+)
+with check (
+  bucket_id = 'vehicle-photos'
+  and exists (select 1 from public.employees where id = auth.uid() and active = true)
+  and lower(storage.extension(name)) in ('jpg', 'jpeg', 'png', 'webp')
+);
+
+create policy "vehicle photos employee delete"
 on storage.objects for delete
-using (bucket_id = 'vehicle-photos');
+to authenticated
+using (
+  bucket_id = 'vehicle-photos'
+  and exists (select 1 from public.employees where id = auth.uid() and active = true)
+);
