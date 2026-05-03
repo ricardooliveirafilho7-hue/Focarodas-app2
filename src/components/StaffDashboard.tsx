@@ -2,13 +2,18 @@ import React from 'react';
 import { useAppStore } from '../lib/store';
 import { Car, Clock, AlertTriangle, MessageCircle, CheckCircle2 } from 'lucide-react';
 import { Search, Plus } from 'lucide-react';
+import { parseLocalDate } from '../lib/dateUtils';
 
 export default function StaffDashboard({ onNavigate, onNewService }: { onNavigate: (tab: string) => void, onNewService?: () => void }) {
   const { serviceOrders, getVehicleById, currentUser } = useAppStore();
 
-  const activeOrders = serviceOrders.filter(v => v.status !== 'Finalizado' && v.status !== 'Retirada');
-  const finishedToday = serviceOrders.filter(v => v.status === 'Finalizado').length; 
-  const delayed = serviceOrders.filter(v => new Date(v.deliveryEstimate) < new Date() && v.status !== 'Finalizado' && v.status !== 'Retirada');
+  const activeOrders = serviceOrders.filter(v => !['Finalizado', 'Retirada', 'Cancelado'].includes(v.status));
+  const todayStr = new Date().toISOString().split('T')[0];
+  const finishedToday = serviceOrders.filter(v =>
+    (v.status === 'Finalizado' || v.status === 'Retirada') &&
+    (v.updatedAt || v.finishedAt || '').startsWith(todayStr)
+  ).length;
+  const delayed = serviceOrders.filter(v => parseLocalDate(v.deliveryEstimate) < new Date() && !['Finalizado', 'Retirada', 'Cancelado'].includes(v.status));
   const awaitingApproval = serviceOrders.filter(v => v.status === 'Em análise').length;
   // Without a real messaging system yet, messages are 0
   const messagesCount = 0;
@@ -65,7 +70,7 @@ export default function StaffDashboard({ onNavigate, onNewService }: { onNavigat
                   <p className="text-sm text-white/40 text-center max-w-sm mt-1">Quando um carro for recebido, ele aparecerá aqui com seu status de serviço.</p>
                </div>
             ) : (
-              activeOrders.slice(0, 4).map((order, idx) => {
+              activeOrders.slice(0, 4).map((order) => {
                 const vehicle = getVehicleById(order.vehicleId);
                 return (
                 <div key={order.id} className="bg-[var(--color-card-bg)] border border-white/5 rounded-2xl p-5 hover:border-white/10 transition cursor-pointer" onClick={() => onNavigate('Veículos')}>

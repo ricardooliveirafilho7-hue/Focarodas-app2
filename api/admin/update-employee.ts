@@ -17,7 +17,7 @@ const allowedRoles = new Set(['Administrador', 'Gerente', 'Atendente', 'Tecnico'
 
 export default async function handler(req: ApiRequest, res: any) {
   if (rejectInvalidMethod(req, res)) return;
-  setCors(res);
+  setCors(res, req);
 
   try {
     assertServerEnv();

@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../../lib/store';
-import { Search, MapPin, Mail, Phone, Calendar, MessageSquare, Edit2, Car, Users, Plus, Key, X, User, Shield, CheckCircle2, ChevronRight, Activity, Send, UploadCloud } from 'lucide-react';
-import { Client } from '../../types';
+import { Search, Phone, Calendar, MessageSquare, Edit2, Car, Users, Plus, Key, X, User, ChevronRight, Send, UploadCloud } from 'lucide-react';
+import { Client, Vehicle } from '../../types';
 import { fileToDataUrl, uploadVehiclePhoto } from '../../lib/imageUpload';
+import { SkeletonCard } from '../SkeletonCard';
 
 import NewServiceModal from './NewServiceModal';
 const BookUser = Users;
 
-function VehicleModal({ clientId, onClose, onSave }: { clientId: string, onClose: () => void, onSave: (v: any) => void }) {
+function VehicleModal({ clientId, onClose, onSave }: { clientId: string, onClose: () => void, onSave: (v: Omit<Vehicle, 'id'>) => Promise<void> | void }) {
   const [formData, setFormData] = useState({
     model: '',
     plate: '',
@@ -27,8 +28,8 @@ function VehicleModal({ clientId, onClose, onSave }: { clientId: string, onClose
     try {
       const preview = await fileToDataUrl(file);
       setFormData(prev => ({ ...prev, photo: preview }));
-    } catch (error: any) {
-      setErrorMsg(error?.message || 'Nao foi possivel carregar a foto.');
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : 'Nao foi possivel carregar a foto.');
     }
   };
 
@@ -41,8 +42,8 @@ function VehicleModal({ clientId, onClose, onSave }: { clientId: string, onClose
         ? await uploadVehiclePhoto(photoFile, `${formData.plate || formData.model || clientId}`)
         : formData.photo;
       await onSave({ ...formData, photo, clientId });
-    } catch (error: any) {
-      setErrorMsg(error?.message || 'Erro ao salvar a foto do veiculo.');
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : 'Erro ao salvar a foto do veiculo.');
     } finally {
       setIsSaving(false);
     }
@@ -120,7 +121,7 @@ function VehicleModal({ clientId, onClose, onSave }: { clientId: string, onClose
   );
 }
 
-function ClientModal({ client, onClose, onSave }: { client?: Client | null, onClose: () => void, onSave: (c: any) => Promise<{success: boolean, error?: string}> | void }) {
+function ClientModal({ client, onClose, onSave }: { client?: Client | null, onClose: () => void, onSave: (c: Omit<Client, 'id'>) => Promise<{success: boolean, error?: string}> | void }) {
   const [formData, setFormData] = useState({
     name: client?.name || '',
     login: client?.login || '',
@@ -143,7 +144,7 @@ function ClientModal({ client, onClose, onSave }: { client?: Client | null, onCl
       if (res && res.success === false) {
         setErrorMsg(res.error || 'Ocorreu um erro ao salvar o cliente.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setErrorMsg('Erro inesperado: ' + String(err));
     } finally {
       setLoading(false);
@@ -196,7 +197,7 @@ function ClientModal({ client, onClose, onSave }: { client?: Client | null, onCl
              
              <div>
                  <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2 ml-1">Status da Conta</label>
-                 <select value={formData.status} onChange={e=>setFormData({...formData, status: e.target.value as any})} className="w-full form-input bg-[#111] font-bold text-white">
+                 <select value={formData.status} onChange={e=>setFormData({...formData, status: e.target.value as Client['status']})} className="w-full form-input bg-[#111] font-bold text-white">
                    <option value="Ativo" className="bg-[#222]">🟢 Cliente Ativo</option>
                    <option value="Aguardando" className="bg-[#222]">🟡 Em Prospecção / Aguardando</option>
                    <option value="Inativo" className="bg-[#222]">⚫ Cliente Inativo</option>
@@ -221,7 +222,7 @@ function ClientModal({ client, onClose, onSave }: { client?: Client | null, onCl
                   <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2 ml-1">Senha</label>
                   <div className="relative">
                     <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={16} />
-                    <input type="text" required={!client} value={formData.password} onChange={e=>setFormData({...formData, password: e.target.value})} className="w-full form-input bg-[#111] pl-10 font-mono" placeholder={client ? 'Preencha apenas se quiser trocar' : 'Senha'} />
+                    <input type="password" autoComplete="new-password" required={!client} value={formData.password} onChange={e=>setFormData({...formData, password: e.target.value})} className="w-full form-input bg-[#111] pl-10 font-mono" placeholder={client ? 'Preencha apenas se quiser trocar' : 'Senha'} />
                   </div>
                 </div>
              </div>
@@ -294,7 +295,7 @@ function SendMessageModal({ clientId, onClose }: { clientId: string, onClose: ()
           </div>
           <div>
             <label className="block text-[10px] uppercase tracking-widest font-bold text-white/40 mb-2">Urgência</label>
-            <select value={type} onChange={e=>setType(e.target.value as any)} className="w-full bg-[#1A1A1A] border border-white/5 rounded-xl p-3 text-white focus:border-blue-500 transition-colors">
+            <select value={type} onChange={e=>setType(e.target.value as typeof type)} className="w-full bg-[#1A1A1A] border border-white/5 rounded-xl p-3 text-white focus:border-blue-500 transition-colors">
                <option value="info">Geral / Informativo</option>
                <option value="success">Sucesso / Concluído</option>
                <option value="warning">Aviso / Importante</option>
@@ -318,6 +319,7 @@ export default function Clients() {
   const [modalClient, setModalClient] = useState<Client | null>(null);
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isNewServiceModalOpen, setIsNewServiceModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const filtered = clients.filter(c => {
     if (!search) return true;
@@ -327,7 +329,12 @@ export default function Clients() {
 
   const getClientVehicles = (id: string) => vehicles.filter(v => v.clientId === id);
 
-  const handleSaveClient = async (data: any) => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIsLoading(false), 250);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const handleSaveClient = async (data: Omit<Client, 'id'>) => {
     let res;
     if (modalClient) {
       const success = await updateClient(modalClient.id, data);
@@ -349,7 +356,7 @@ export default function Clients() {
     return res;
   };
 
-  const handleSaveVehicle = async (data: any) => {
+  const handleSaveVehicle = async (data: Omit<Vehicle, 'id'>) => {
     const vehicle = await createVehicle(data);
     if (vehicle) setIsVehicleModalOpen(false);
   };
@@ -423,7 +430,11 @@ export default function Clients() {
              <span className="text-[10px] bg-[#1C1C1F] border border-white/5 px-2.5 py-1 rounded-full text-white/60 font-bold uppercase tracking-widest">{filtered.length} Registros</span>
            </div>
            
-           {filtered.map(client => {
+           {isLoading && Array.from({ length: 3 }).map((_, index) => (
+             <SkeletonCard key={`client-skeleton-${index}`} className="rounded-3xl" />
+           ))}
+
+           {!isLoading && filtered.map(client => {
              const isSelected = selectedClient?.id === client.id;
              const vCount = getClientVehicles(client.id).length;
              return (
@@ -457,7 +468,7 @@ export default function Clients() {
              );
            })}
 
-           {clients.length === 0 && (
+           {!isLoading && clients.length === 0 && (
              <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-white/5 rounded-3xl bg-[#151515] mt-4">
                  <div className="w-20 h-20 bg-[#111] rounded-full flex items-center justify-center mb-6 shadow-inner border border-white/5">
                     <Users className="w-10 h-10 text-[#E53935] drop-shadow-[0_0_10px_rgba(229,57,53,0.5)]" />

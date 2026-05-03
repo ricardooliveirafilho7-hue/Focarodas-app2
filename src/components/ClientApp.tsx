@@ -1,7 +1,19 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../lib/store';
-import { Bell, Settings, Home, Car, MessageCircle, User as UserIcon, LogOut, Check, Camera } from 'lucide-react';
-import { STATUS_SEQUENCE } from './StaffVehicleDetail';
+import { Bell, Home, Car, MessageCircle, User as UserIcon, LogOut, Check } from 'lucide-react';
+import { formatDate, formatDateTime } from '../lib/dateUtils';
+
+const CLIENT_STEPS = ['Recebido', 'Em andamento', 'Pronto', 'Finalizado', 'Retirada'] as const;
+
+const mapStatusToStep = (status: string): number => {
+  if (['Recebido', 'Em análise', 'Aguardando aprovação'].includes(status)) return 0;
+  if (['Aprovado', 'Aguardando peças', 'Em reparo', 'Pintura', 'Alinhamento/Balanceamento'].includes(status)) return 1;
+  if (status === 'Pronto') return 2;
+  if (status === 'Finalizado') return 3;
+  if (status === 'Retirada') return 4;
+  if (status === 'Cancelado') return -1;
+  return 0;
+};
 
 export default function ClientApp() {
   const { logout, currentUser, vehicles, serviceOrders, messages, markMessageAsRead } = useAppStore();
@@ -17,7 +29,7 @@ export default function ClientApp() {
 
   if (!currentUser) return null;
 
-  const currentStatusIndex = activeOrder ? STATUS_SEQUENCE.indexOf(activeOrder.status) : -1;
+  const currentStepIndex = activeOrder ? mapStatusToStep(activeOrder.status) : -1;
 
   return (
     <div className="flex-1 flex flex-col w-full h-full min-h-0 bg-[var(--color-background)]">
@@ -84,7 +96,7 @@ export default function ClientApp() {
                     <div className="bg-black/30 border border-white/5 rounded-2xl p-4 flex justify-between items-center group-hover:bg-white/5 transition-colors">
                       <div>
                         <p className="text-[10px] uppercase font-bold text-white/40 tracking-wider mb-1">Previsão de Entrega</p>
-                        <p className="font-bold text-white tracking-wide">{activeOrder?.deliveryEstimate ? new Date(activeOrder.deliveryEstimate).toLocaleDateString('pt-BR') : '-'}</p>
+                        <p className="font-bold text-white tracking-wide">{activeOrder?.deliveryEstimate ? formatDate(activeOrder.deliveryEstimate) : '-'}</p>
                       </div>
                       <div className="w-10 h-10 rounded-full bg-[var(--color-brand-red)]/10 text-[var(--color-brand-red)] flex items-center justify-center group-hover:bg-[var(--color-brand-red)] group-hover:text-white transition-colors">
                         <span className="font-bold text-sm">Ver</span>
@@ -143,7 +155,7 @@ export default function ClientApp() {
                </div>
                <div className="text-right relative z-10">
                  <p className="text-[10px] uppercase font-bold text-white/40 tracking-wider mb-1">Previsão</p>
-                 <p className="text-xl font-bold text-white">{new Date(activeOrder.deliveryEstimate).toLocaleDateString('pt-BR')}</p>
+                 <p className="text-xl font-bold text-white">{formatDate(activeOrder.deliveryEstimate)}</p>
                </div>
                <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--color-brand-red)] rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 opacity-20 pointer-events-none"></div>
             </div>
@@ -157,20 +169,20 @@ export default function ClientApp() {
                 <div className="absolute top-4 left-6 right-6 md:left-12 md:right-12 h-0.5 bg-white/5 -z-10"></div>
                 <div 
                   className="absolute top-4 left-6 md:left-12 h-0.5 bg-[var(--color-brand-red)] -z-10 transition-all duration-1000"
-                  style={{ width: `${Math.max(0, (currentStatusIndex / (STATUS_SEQUENCE.length - 1)) * 100)}%` }}
+                  style={{ width: currentStepIndex < 0 ? '0%' : `${(currentStepIndex / (CLIENT_STEPS.length - 1)) * 100}%` }}
                 ></div>
 
-                {['Recebido', 'Em análise', activeOrder.status, 'Finalizado', 'Retirada'].filter((v, i, a) => a.indexOf(v) === i).map((step, idx, arr) => {
-                  let isCompleted = STATUS_SEQUENCE.indexOf(step as any) <= currentStatusIndex;
-                  let isCurrent = step === activeOrder.status;
+                {CLIENT_STEPS.map((step, idx) => {
+                  const isCompleted = idx < currentStepIndex;
+                  const isCurrent = idx === currentStepIndex;
                   return (
                     <div key={idx} className="flex flex-col items-center gap-3 w-16">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 shadow-lg transition-colors
-                         ${isCurrent ? 'bg-[var(--color-brand-red)] border-[var(--color-brand-red)] shadow-[var(--color-brand-red)]/30 text-white' : 
-                         isCompleted ? 'bg-[var(--color-brand-red-dark)] border-[var(--color-brand-red)] text-white' : 
+                         ${isCurrent ? 'bg-[var(--color-brand-red)] border-[var(--color-brand-red)] text-white' :
+                         isCompleted ? 'bg-[var(--color-brand-red-dark)] border-[var(--color-brand-red)] text-white' :
                          'bg-[#1a1a1a] border-white/10 text-white/20'}`}
                       >
-                         {isCompleted && !isCurrent ? <Check className="w-4 h-4" /> : <div className="w-2 h-2 rounded-full bg-current"></div>}
+                         {isCompleted ? <Check className="w-4 h-4" /> : <div className="w-2 h-2 rounded-full bg-current"></div>}
                       </div>
                       <div className="text-center w-24">
                         <span className={`block text-[10px] md:text-xs font-bold leading-tight ${isCurrent ? 'text-[var(--color-brand-red)]' : isCompleted ? 'text-white/80' : 'text-white/30'}`}>{step}</span>
@@ -192,7 +204,7 @@ export default function ClientApp() {
                         {activeOrder.updates[0].publicMessage}
                       </p>
                       <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold block mt-2">
-                        {new Date(activeOrder.updates[0].date).toLocaleString('pt-BR')}
+                        {formatDateTime(activeOrder.updates[0].date)}
                       </span>
                    </div>
                 </div>
@@ -230,7 +242,7 @@ export default function ClientApp() {
                      {!msg.read && <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/20 blur-xl pointer-events-none" />}
                      <div className="flex justify-between items-start mb-1">
                         <h4 className="font-bold text-white tracking-tight">{msg.title}</h4>
-                        <span className="text-[10px] text-white/40 font-mono">{new Date(msg.createdAt).toLocaleDateString('pt-BR')}</span>
+                        <span className="text-[10px] text-white/40 font-mono">{formatDate(msg.createdAt)}</span>
                      </div>
                      <p className="text-sm text-white/70 leading-relaxed">{msg.content}</p>
                    </div>

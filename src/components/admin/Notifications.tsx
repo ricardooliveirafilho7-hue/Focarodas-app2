@@ -1,10 +1,11 @@
 import React from 'react';
 import { Bell, CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
 import { useAppStore } from '../../lib/store';
+import { formatDateTime, parseLocalDate } from '../../lib/dateUtils';
 
 export default function Notifications() {
   const { notifications, serviceOrders, messages, payments, markNotificationAsRead } = useAppStore();
-  const delayed = serviceOrders.filter(order => new Date(order.deliveryEstimate) < new Date() && !['Finalizado', 'Retirada', 'Cancelado'].includes(order.status));
+  const delayed = serviceOrders.filter(order => parseLocalDate(order.deliveryEstimate) < new Date() && !['Finalizado', 'Retirada', 'Cancelado'].includes(order.status));
   const ready = serviceOrders.filter(order => order.status === 'Pronto');
   const unreadMessages = messages.filter(message => !message.read);
   const pendingPayments = payments.filter(payment => payment.status === 'Pendente');
@@ -15,7 +16,7 @@ export default function Notifications() {
     ...unreadMessages.map(message => ({ id: `msg-${message.id}`, persisted: false, title: 'Mensagem não lida', message: message.title, type: 'INFO' as const, createdAt: message.createdAt, read: false })),
     ...pendingPayments.map(payment => ({ id: `pay-${payment.id}`, persisted: false, title: 'Pagamento pendente', message: `${payment.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} aguardando baixa.`, type: 'WARNING' as const, createdAt: payment.createdAt, read: false })),
     ...notifications.map(notification => ({ ...notification, persisted: true }))
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  ].sort((a, b) => parseLocalDate(b.createdAt).getTime() - parseLocalDate(a.createdAt).getTime());
 
   const getIcon = (type: string) => {
     if (type === 'SUCCESS') return <CheckCircle2 className="text-green-500" size={18} />;
@@ -44,7 +45,7 @@ export default function Notifications() {
               <div className="flex-1">
                 <div className="flex justify-between gap-3">
                   <h3 className="font-black text-white">{notification.title}</h3>
-                  <span className="text-[10px] text-white/40 flex items-center gap-1"><Clock size={12} /> {new Date(notification.createdAt).toLocaleString('pt-BR')}</span>
+                  <span className="text-[10px] text-white/40 flex items-center gap-1"><Clock size={12} /> {formatDateTime(notification.createdAt)}</span>
                 </div>
                 <p className="text-sm text-white/60 mt-1">{notification.message}</p>
               </div>

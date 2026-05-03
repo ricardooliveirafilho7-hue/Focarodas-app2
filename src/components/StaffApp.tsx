@@ -5,10 +5,10 @@ import StaffVehicleList from './StaffVehicleList';
 import StaffVehicleDetail from './StaffVehicleDetail';
 import Clients from './admin/Clients';
 import NewServiceModal from './admin/NewServiceModal';
-import { Bell, Settings, Home, Car, MessageCircle, User as UserIcon, Users } from 'lucide-react';
+import { AlertTriangle, Bell, Settings, Home, Car, User as UserIcon, Users } from 'lucide-react';
 
 export default function StaffApp() {
-  const { logout, activeVehicleId, setActiveVehicleId } = useAppStore();
+  const { logout, activeVehicleId, setActiveVehicleId, isUsingLocalFallback, dataError } = useAppStore();
   const [activeTab, setActiveTab] = useState('Início');
   const [isNewServiceModalOpen, setIsNewServiceModalOpen] = useState(false);
 
@@ -38,6 +38,18 @@ export default function StaffApp() {
         </div>
       </header>
       
+      {(isUsingLocalFallback || dataError) && (
+        <div className="mx-4 md:mx-8 mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl px-4 py-3 flex items-start gap-3">
+          <AlertTriangle size={16} className="text-yellow-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-yellow-300">
+              {isUsingLocalFallback ? 'Modo local ativo - dados não persistem online' : 'Erro de conexão com Supabase'}
+            </p>
+            {dataError && <p className="text-xs text-yellow-300/70 mt-1">{dataError}</p>}
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
       {activeTab === 'Início' && <StaffDashboard onNavigate={setActiveTab} onNewService={() => setIsNewServiceModalOpen(true)} />}
       {activeTab === 'Veículos' && <StaffVehicleList onSelectVehicle={setActiveVehicleId} onNewService={() => setIsNewServiceModalOpen(true)} />}

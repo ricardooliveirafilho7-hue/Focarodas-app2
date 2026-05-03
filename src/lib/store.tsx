@@ -2,26 +2,49 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { isSupabaseConfigured, supabase } from './supabase';
 import { Vehicle, ServiceOrder, Client, UserRole, ServiceStatus, ServiceUpdate, Employee, AuditLog, Settings, Message, Budget, Payment, Notification } from '../types';
 
-const toCamel = (obj: any): any => {
-  if (Array.isArray(obj)) return obj.map(v => toCamel(v));
-  if (obj !== null && typeof obj === 'object') {
-    return Object.keys(obj).reduce((result, key) => {
+type ToastType = 'success' | 'error' | 'warning' | 'info';
+type CurrentUser = Client | Employee | { id: string, name: string } | null;
+type RealtimePayload = {
+  eventType?: 'INSERT' | 'UPDATE' | 'DELETE' | string;
+  old?: unknown;
+  new?: unknown;
+};
+
+let _showToast: (msg: string, type?: ToastType) => void = () => {};
+export const setToastFn = (fn: typeof _showToast) => {
+  _showToast = fn;
+};
+
+const toast = {
+  success: (msg: string) => _showToast(msg, 'success'),
+  error: (msg: string) => _showToast(msg, 'error'),
+  warning: (msg: string) => _showToast(msg, 'warning'),
+  info: (msg: string) => _showToast(msg, 'info')
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const toCamel = <T = unknown>(obj: unknown): T => {
+  if (Array.isArray(obj)) return obj.map(v => toCamel(v)) as T;
+  if (isRecord(obj)) {
+    return Object.keys(obj).reduce<Record<string, unknown>>((result, key) => {
       const camelKey = key.replace(/([-_][a-z])/ig, ($1) => $1.toUpperCase().replace('-', '').replace('_', ''));
       result[camelKey] = toCamel(obj[key]);
       return result;
-    }, {} as any);
+    }, {}) as T;
   }
-  return obj;
+  return obj as T;
 };
 
-const toSnake = (obj: any): any => {
+const toSnake = (obj: unknown): unknown => {
   if (Array.isArray(obj)) return obj.map(v => toSnake(v));
-  if (obj !== null && typeof obj === 'object') {
-    return Object.keys(obj).reduce((result, key) => {
+  if (isRecord(obj)) {
+    return Object.keys(obj).reduce<Record<string, unknown>>((result, key) => {
       const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
       result[snakeKey] = toSnake(obj[key]);
       return result;
-    }, {} as any);
+    }, {});
   }
   return obj;
 };
@@ -38,7 +61,7 @@ interface AppState {
   notifications: Notification[];
   settings: Settings;
   role: UserRole;
-  currentUser: Client | Employee | { id: string, name: string } | null;
+  currentUser: CurrentUser;
   activeVehicleId: string | null;
   isUsingLocalFallback: boolean;
   dataError: string | null;
@@ -46,7 +69,7 @@ interface AppState {
 
 interface AppContextType extends AppState {
   setRole: (role: UserRole) => void;
-  setCurrentUser: (user: any) => void;
+  setCurrentUser: (user: CurrentUser) => void;
   loginUser: (login: string, pass: string, panel: 'cliente' | 'funcionario' | 'admin') => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   addVehicleUpdate: (
@@ -159,7 +182,7 @@ const updateLocalData = (updater: (data: LocalData) => LocalData): LocalData => 
 };
 
 const passwordMatches = (storedPassword: string | undefined, inputPass: string) =>
-  !storedPassword || storedPassword === inputPass || inputPass === 'focarodas';
+  !storedPassword || storedPassword === inputPass;
 
 const cleanLogin = (value: string) =>
   String(value || '')
@@ -175,9 +198,12 @@ const authEmailFromLogin = (loginOrEmail: string) => {
   return `${cleanLogin(trimmed).replace(/[^a-z0-9]/g, '')}@focarodas.com`;
 };
 
-const upsertById = <T extends { id: string }>(items: T[], item: T) => {
-  const withoutCurrent = items.filter(existing => existing.id !== item.id);
-  return [item, ...withoutCurrent];
+const upsertById = <T extends { id: string }>(items: T[], item: T): T[] => {
+  const index = items.findIndex(existing => existing.id === item.id);
+  if (index === -1) return [item, ...items];
+  const updated = [...items];
+  updated[index] = item;
+  return updated;
 };
 
 const backendUnavailableMessage = () => {
@@ -188,18 +214,18 @@ const backendUnavailableMessage = () => {
   return 'Nao foi possivel acessar as APIs do servidor. Verifique se o deploy da Vercel esta ativo ou rode npx vercel dev para testar localmente.';
 };
 
-const apiPost = async <T extends Record<string, any>>(url: string, body: Record<string, any>): Promise<T & { success: boolean; error?: string }> => {
+const apiPost = async <T extends object>(url: string, body: object): Promise<T & { success: boolean; error?: string }> => {
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    const payload = await response.json().catch(() => ({}));
+    const payload = await response.json().catch(() => ({})) as Partial<T> & { success?: boolean; error?: string };
     if (!response.ok || payload.success === false) {
       return { success: false, error: payload.error || 'Erro ao comunicar com a API.' } as T & { success: boolean; error?: string };
     }
-    return payload;
+    return payload as T & { success: boolean; error?: string };
   } catch (error) {
     console.error('API fetch failed', error);
     return { success: false, error: backendUnavailableMessage() } as T & { success: boolean; error?: string };
@@ -216,10 +242,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [settings, setSettings] = useState<Settings>({ darkMode: true });
+  const [settings] = useState<Settings>({ darkMode: true });
   
   const [role, setRole] = useState<UserRole>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser>(null);
   const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [isUsingLocalFallback, setIsUsingLocalFallback] = useState(false);
@@ -258,7 +284,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const preferredTable = savedRole === 'CLIENT' ? 'clients' : 'employees';
       const { data: row } = await supabase.from(preferredTable).select('*').eq('id', authUserId).maybeSingle();
       if (cancelled || !row) return;
-      const mapped = toCamel(row);
+      const mapped = preferredTable === 'clients' ? toCamel<Client>(row) : toCamel<Employee>(row);
       setCurrentUser(mapped);
       if (preferredTable === 'clients') setRole('CLIENT');
       else setRole(savedRole === 'STAFF' ? 'STAFF' : 'ADMIN');
@@ -320,13 +346,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ]);
           const failed = [resClients, resVehicles, resOrders, resMsgs, resBudgets, resPayments, resNotifications].find(result => result.error);
           if (failed?.error) throw failed.error;
-          if (resClients.data) setClients(toCamel(resClients.data));
-          if (resVehicles.data) setVehicles(toCamel(resVehicles.data));
-          if (resOrders.data) setServiceOrders(toCamel(resOrders.data));
-          if (resMsgs.data) setMessages(toCamel(resMsgs.data));
-          if (resBudgets.data) setBudgets(toCamel(resBudgets.data));
-          if (resPayments.data) setPayments(toCamel(resPayments.data));
-          if (resNotifications.data) setNotifications(toCamel(resNotifications.data));
+          if (resClients.data) setClients(toCamel<Client[]>(resClients.data));
+          if (resVehicles.data) setVehicles(toCamel<Vehicle[]>(resVehicles.data));
+          if (resOrders.data) setServiceOrders(toCamel<ServiceOrder[]>(resOrders.data));
+          if (resMsgs.data) setMessages(toCamel<Message[]>(resMsgs.data));
+          if (resBudgets.data) setBudgets(toCamel<Budget[]>(resBudgets.data));
+          if (resPayments.data) setPayments(toCamel<Payment[]>(resPayments.data));
+          if (resNotifications.data) setNotifications(toCamel<Notification[]>(resNotifications.data));
         } else {
           const [resClients, resVehicles, resOrders, resEmps, resMsgs, resLogs, resBudgets, resPayments, resNotifications] = await Promise.all([
              supabase.from('clients').select('*'),
@@ -341,26 +367,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ]);
           const failed = [resClients, resVehicles, resOrders, resEmps, resMsgs, resLogs, resBudgets, resPayments, resNotifications].find(result => result.error);
           if (failed?.error) throw failed.error;
-          if (resClients.data) setClients(toCamel(resClients.data));
-          if (resVehicles.data) setVehicles(toCamel(resVehicles.data));
-          if (resOrders.data) setServiceOrders(toCamel(resOrders.data));
+          if (resClients.data) setClients(toCamel<Client[]>(resClients.data));
+          if (resVehicles.data) setVehicles(toCamel<Vehicle[]>(resVehicles.data));
+          if (resOrders.data) setServiceOrders(toCamel<ServiceOrder[]>(resOrders.data));
           if (resEmps.data) {
-             let loadedEmps = toCamel(resEmps.data);
+             const loadedEmps = toCamel<Employee[]>(resEmps.data);
              // Ensure admin exists
-             if (!loadedEmps.find((e: any) => e.id === 'admin1')) {
+             if (!loadedEmps.find(employee => employee.id === 'admin1')) {
                 loadedEmps.push({ id: 'admin1', name: 'Administrador', login: 'admin', password: '123456', email: 'admin@focarodas.com', role: 'Administrador', active: true });
              }
              setEmployees(loadedEmps);
           }
-          if (resMsgs.data) setMessages(toCamel(resMsgs.data));
-          if (resLogs.data) setLogs(toCamel(resLogs.data));
-          if (resBudgets.data) setBudgets(toCamel(resBudgets.data));
-          if (resPayments.data) setPayments(toCamel(resPayments.data));
-          if (resNotifications.data) setNotifications(toCamel(resNotifications.data));
+          if (resMsgs.data) setMessages(toCamel<Message[]>(resMsgs.data));
+          if (resLogs.data) setLogs(toCamel<AuditLog[]>(resLogs.data));
+          if (resBudgets.data) setBudgets(toCamel<Budget[]>(resBudgets.data));
+          if (resPayments.data) setPayments(toCamel<Payment[]>(resPayments.data));
+          if (resNotifications.data) setNotifications(toCamel<Notification[]>(resNotifications.data));
         }
       } catch (err) {
         console.error("Supabase load error", err);
-        setDataError(`Falha ao carregar dados do Supabase: ${(err as any)?.message || 'verifique schema, RLS e variaveis de ambiente.'}`);
+        setDataError(`Falha ao carregar dados do Supabase: ${err instanceof Error ? err.message : 'verifique schema, RLS e variaveis de ambiente.'}`);
       }
       
       setIsReady(true);
@@ -369,7 +395,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     
     // Setup Supabase Realtime listeners
     if (role && currentUser && isSupabaseConfigured) {
-      const applyRealtimeChange = <T extends { id: string }>(setter: React.Dispatch<React.SetStateAction<T[]>>, payload: any, rowFilter?: (row: T) => boolean) => {
+      const applyRealtimeChange = <T extends { id: string }>(setter: React.Dispatch<React.SetStateAction<T[]>>, payload: RealtimePayload, rowFilter?: (row: T) => boolean) => {
         const raw = payload.eventType === 'DELETE' ? payload.old : payload.new;
         const row = toCamel(raw) as T;
         if (!row?.id || (rowFilter && !rowFilter(row))) return;
@@ -405,7 +431,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         supabase.removeChannel(channel);
       };
     }
-  }, [role, currentUser?.id]);
+  }, [role, currentUser]);
 
   useEffect(() => {
     if (role !== null) localStorage.setItem('foca_role_v3', role);
@@ -417,7 +443,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addLog = (action: string, target: string, type: 'edit' | 'add' | 'alert' | 'delete' | 'info', details?: string, targetId?: string) => {
     const newLog: AuditLog = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       userId: currentUser?.id || 'system',
       userName: currentUser?.name || 'Sistema',
       action,
@@ -533,13 +559,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 2. Local test password bypass (as requested "senha: focarodas funcione para teste")
-      const isBypass = false;
-
       let authUserId: string | null = null;
 
-      if (!isBypass) {
-        // Real Supabase Auth login
+      // 2. Real Supabase Auth login
       let loginEmail = authEmailFromLogin(inputLogin);
       if (!inputLogin.includes('@')) {
         const table = panel === 'cliente' ? 'clients' : 'employees';
@@ -560,14 +582,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return { success: false, error: 'Login ou senha inválidos.' };
         }
         authUserId = authData.user.id;
-      }
 
       // 3. Fetch specific role table
       if (panel === 'cliente') {
         const { data, error } = await supabase.from('clients').select('*').eq('id', authUserId).single();
         if (error || !data) return { success: false, error: 'Usuário não encontrado.' };
         
-        const mappedData = toCamel(data);
+        const mappedData = toCamel<Client>(data);
         if (mappedData.status === 'Inativo') return { success: false, error: 'Conta inativa.' };
         
         setCurrentUser(mappedData);
@@ -578,7 +599,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (panel === 'funcionario' || panel === 'admin') {
         const { data, error } = await supabase.from('employees').select('*').eq('id', authUserId).single();
         if (error || !data) return { success: false, error: 'Usuário não encontrado.' };
-        const mappedData = toCamel(data);
+        const mappedData = toCamel<Employee>(data);
         if (!mappedData.active) return { success: false, error: 'Conta inativa.' };
         
         if (panel === 'admin') {
@@ -630,7 +651,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     notifyClient: boolean
   ) => {
     const update: ServiceUpdate = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       date: new Date().toISOString(),
       status,
       publicMessage,
@@ -725,7 +746,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setClients(prev => upsertById(prev, savedClient));
       addLog('criou novo cliente', savedClient.name, 'add', '', savedClient.id);
       return { success: true, client: savedClient };
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       return { success: false, error: "Erro de conexão ao salvar cliente." };
     }
@@ -745,15 +766,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const result = await apiPost<{ client?: Client }>('/api/admin/update-client', { id, ...updates });
 
       if (!result.success || !result.client) {
-        alert("Erro ao atualizar cliente: " + (result.error || "Erro desconhecido"));
+        toast.error("Erro ao atualizar cliente: " + (result.error || "Erro desconhecido"));
         return false;
       }
       
       setClients(prev => prev.map(c => c.id === id ? result.client as Client : c));
       return true;
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      alert("Erro de conexão ao atualizar cliente.");
+      toast.error("Erro de conexão ao atualizar cliente.");
       return false;
     }
   };
@@ -772,9 +793,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (error) {
        console.error("Supabase Error", error);
        if (error.message && error.message.includes("Could not find the table")) {
-          alert("ERRO CRÍTICO: A tabela 'vehicles' não existe no Supabase. Por favor, execute o script do arquivo 'supabase-schema-v2.sql' no seu Supabase SQL Editor para criar as tabelas.");
+          toast.error("ERRO CRÍTICO: A tabela 'vehicles' não existe no Supabase. Execute o script 'supabase-schema-v2.sql' no Supabase SQL Editor.");
        } else {
-          alert("Não foi possível salvar o veículo. Erro: " + error.message);
+          toast.error("Não foi possível salvar o veículo. Erro: " + error.message);
        }
        return null;
     }
@@ -796,7 +817,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const { data, error } = await supabase.from('vehicles').update(toSnake(updates)).eq('id', id).select().single();
     if (error) {
-      alert("Erro ao atualizar veiculo: " + error.message);
+      toast.error("Erro ao atualizar veiculo: " + error.message);
       return false;
     }
     const savedVehicle = (data ? toCamel(data) : { ...vehicles.find(v => v.id === id), ...updates }) as Vehicle;
@@ -820,9 +841,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (error) {
        console.error("Supabase Error", error);
        if (error.message && error.message.includes("Could not find the table")) {
-          alert("ERRO CRÍTICO: A tabela 'service_orders' não existe no Supabase. Por favor, execute o script do arquivo 'supabase-schema-v2.sql' no seu Supabase SQL Editor para criar as tabelas.");
+          toast.error("ERRO CRÍTICO: A tabela 'service_orders' não existe no Supabase. Execute o script 'supabase-schema-v2.sql' no Supabase SQL Editor.");
        } else {
-          alert("Erro ao criar a Ordem de Serviço: " + error.message);
+          toast.error("Erro ao criar a Ordem de Serviço: " + error.message);
        }
        return null;
     }
@@ -852,7 +873,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const { data, error } = await supabase.from('service_orders').update(toSnake(updatesWithTimestamp)).eq('id', id).select().single();
     if (error) {
-      alert("Erro ao atualizar OS: " + error.message);
+      toast.error("Erro ao atualizar OS: " + error.message);
       return false;
     }
     const savedOrder = (data ? toCamel(data) : { ...serviceOrders.find(v => v.id === id), ...updatesWithTimestamp }) as ServiceOrder;
@@ -881,7 +902,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const savedEmployee = result.employee;
       setEmployees(prev => upsertById(prev, savedEmployee));
       return { success: true, employee: savedEmployee };
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       return { success: false, error: "Erro inesperado de conexão com o servidor." };
     }
@@ -901,15 +922,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const result = await apiPost<{ employee?: Employee }>('/api/admin/update-employee', { id, ...updates });
 
       if (!result.success || !result.employee) {
-        alert("Erro ao atualizar funcionário: " + (result.error || "Erro desconhecido"));
+        toast.error("Erro ao atualizar funcionário: " + (result.error || "Erro desconhecido"));
         return false;
       }
       
       setEmployees(prev => prev.map(e => e.id === id ? result.employee as Employee : e));
       return true;
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      alert("Erro de conexão ao atualizar funcionário.");
+      toast.error("Erro de conexão ao atualizar funcionário.");
       return false;
     }
   };
@@ -920,13 +941,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
      if (!isSupabaseConfigured) {
         updateLocalData(data => ({ ...data, messages: [newMsg, ...data.messages] }));
         setMessages(prev => upsertById(prev, newMsg));
-        alert("Mensagem enviada com sucesso.");
+        toast.success("Mensagem enviada com sucesso.");
         return true;
      }
 
      const { data, error } = await supabase.from('messages').insert([toSnake(newMsg)]).select().single();
      if (error) {
-        alert("Erro ao enviar mensagem: " + error.message);
+        toast.error("Erro ao enviar mensagem: " + error.message);
         return false;
      }
      const savedMessage = (data ? toCamel(data) : newMsg) as Message;
@@ -938,7 +959,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
        message: savedMessage.content,
        type: savedMessage.type === 'error' ? 'ERROR' : savedMessage.type === 'warning' ? 'WARNING' : savedMessage.type === 'success' ? 'SUCCESS' : 'INFO'
      });
-     alert("Mensagem enviada com sucesso.");
+     toast.success("Mensagem enviada com sucesso.");
      return true;
   };
   
@@ -995,7 +1016,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const { data, error } = await supabase.from('budgets').insert([toSnake(newBudget)]).select().single();
     if (error) {
-      alert("Erro ao criar orçamento: " + error.message);
+      toast.error("Erro ao criar orçamento: " + error.message);
       return null;
     }
     const savedBudget = toCamel(data) as Budget;
@@ -1020,7 +1041,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const { data, error } = await supabase.from('budgets').update(toSnake(payload)).eq('id', id).select().single();
     if (error) {
-      alert("Erro ao atualizar orçamento: " + error.message);
+      toast.error("Erro ao atualizar orçamento: " + error.message);
       return false;
     }
     setBudgets(prev => prev.map(budget => budget.id === id ? toCamel(data) as Budget : budget));
@@ -1043,7 +1064,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const { data, error } = await supabase.from('payments').insert([toSnake(newPayment)]).select().single();
     if (error) {
-      alert("Erro ao registrar pagamento: " + error.message);
+      toast.error("Erro ao registrar pagamento: " + error.message);
       return null;
     }
     const savedPayment = toCamel(data) as Payment;
@@ -1061,7 +1082,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const { data, error } = await supabase.from('payments').update(toSnake(payload)).eq('id', id).select().single();
     if (error) {
-      alert("Erro ao atualizar pagamento: " + error.message);
+      toast.error("Erro ao atualizar pagamento: " + error.message);
       return false;
     }
     setPayments(prev => prev.map(payment => payment.id === id ? toCamel(data) as Payment : payment));

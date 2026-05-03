@@ -1,6 +1,7 @@
 import React from 'react';
 import { BarChart3, AlertTriangle, Users } from 'lucide-react';
 import { useAppStore } from '../../lib/store';
+import { parseLocalDate } from '../../lib/dateUtils';
 
 export default function Reports() {
   const { serviceOrders, clients, employees, payments } = useAppStore();
@@ -8,7 +9,7 @@ export default function Reports() {
     acc[order.status] = (acc[order.status] || 0) + 1;
     return acc;
   }, {});
-  const delayed = serviceOrders.filter(order => new Date(order.deliveryEstimate) < new Date() && !['Finalizado', 'Retirada', 'Cancelado'].includes(order.status));
+  const delayed = serviceOrders.filter(order => parseLocalDate(order.deliveryEstimate) < new Date() && !['Finalizado', 'Retirada', 'Cancelado'].includes(order.status));
   const revenue = payments.filter(payment => payment.status === 'Pago' || payment.status === 'Parcial').reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   const activeClients = clients.filter(client => client.status !== 'Inativo').length;
   const byTechnician = employees.map(employee => ({

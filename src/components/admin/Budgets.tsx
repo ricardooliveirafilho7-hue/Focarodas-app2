@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Calculator, Plus, Save } from 'lucide-react';
 import { useAppStore } from '../../lib/store';
-import { BudgetItem } from '../../types';
+import { Budget, BudgetItem } from '../../types';
+import { useToast } from '../Toast';
 
 const emptyItem = (): BudgetItem => ({
   id: crypto.randomUUID(),
@@ -14,6 +15,7 @@ const emptyItem = (): BudgetItem => ({
 
 export default function Budgets() {
   const { budgets, serviceOrders, getClientById, getVehicleById, createBudget, updateBudget } = useAppStore();
+  const { showToast } = useToast();
   const [selectedOrderId, setSelectedOrderId] = useState(serviceOrders[0]?.id || '');
   const [items, setItems] = useState<BudgetItem[]>([emptyItem()]);
   const [discount, setDiscount] = useState(0);
@@ -27,7 +29,7 @@ export default function Budgets() {
 
   const saveBudget = async () => {
     if (!selectedOrder || normalizedItems.some(item => !item.description.trim())) {
-      alert('Selecione uma OS e preencha a descrição dos itens.');
+      showToast('Selecione uma OS e preencha a descrição dos itens.', 'error');
       return;
     }
     setIsSaving(true);
@@ -74,7 +76,7 @@ export default function Budgets() {
             {items.map((item, index) => (
               <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-[#1A1A1A] border border-white/5 rounded-2xl p-4">
                 <input className="form-input md:col-span-5" placeholder="Descrição" value={item.description} onChange={e => setItems(prev => prev.map((current, i) => i === index ? { ...current, description: e.target.value } : current))} />
-                <select className="form-input md:col-span-3" value={item.type} onChange={e => setItems(prev => prev.map((current, i) => i === index ? { ...current, type: e.target.value as any } : current))}>
+                <select className="form-input md:col-span-3" value={item.type} onChange={e => setItems(prev => prev.map((current, i) => i === index ? { ...current, type: e.target.value as BudgetItem['type'] } : current))}>
                   <option value="Serviço">Serviço</option>
                   <option value="Peça">Peça</option>
                   <option value="Mão de obra">Mão de obra</option>
@@ -92,7 +94,7 @@ export default function Budgets() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <input className="form-input" type="number" min="0" step="0.01" value={discount} onChange={e => setDiscount(Number(e.target.value))} placeholder="Desconto" />
-            <select className="form-input" value={status} onChange={e => setStatus(e.target.value as any)}>
+            <select className="form-input" value={status} onChange={e => setStatus(e.target.value as Budget['status'])}>
               <option value="Rascunho">Rascunho</option>
               <option value="Enviado">Enviado</option>
               <option value="Aprovado">Aprovado</option>
@@ -122,7 +124,7 @@ export default function Budgets() {
                       <p className="font-bold text-white">{client?.name || 'Cliente'} - {vehicle?.plate || '---'}</p>
                       <p className="text-xs text-white/40">{budget.items.length} itens</p>
                     </div>
-                    <select value={budget.status} onChange={e => updateBudget(budget.id, { status: e.target.value as any })} className="bg-[#111] border border-white/10 rounded-xl px-3 text-sm">
+                    <select value={budget.status} onChange={e => updateBudget(budget.id, { status: e.target.value as Budget['status'] })} className="bg-[#111] border border-white/10 rounded-xl px-3 text-sm">
                       <option value="Rascunho">Rascunho</option>
                       <option value="Enviado">Enviado</option>
                       <option value="Aprovado">Aprovado</option>

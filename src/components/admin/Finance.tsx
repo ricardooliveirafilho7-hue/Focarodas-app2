@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { Wallet, Plus } from 'lucide-react';
 import { useAppStore } from '../../lib/store';
+import { formatDateTime } from '../../lib/dateUtils';
+import { useToast } from '../Toast';
+import { Payment } from '../../types';
 
 export default function Finance() {
   const { payments, budgets, serviceOrders, getClientById, createPayment, updatePayment } = useAppStore();
+  const { showToast } = useToast();
   const [serviceOrderId, setServiceOrderId] = useState(serviceOrders[0]?.id || '');
   const [budgetId, setBudgetId] = useState('');
   const [amount, setAmount] = useState(0);
@@ -16,9 +20,13 @@ export default function Finance() {
   const savePayment = async () => {
     const order = serviceOrders.find(item => item.id === serviceOrderId);
     const budget = budgets.find(item => item.id === budgetId);
+    if (order && budget && order.clientId !== budget.clientId) {
+      showToast('A OS e o orçamento selecionados pertencem a clientes diferentes.', 'error');
+      return;
+    }
     const clientId = order?.clientId || budget?.clientId;
     if (!clientId || amount <= 0) {
-      alert('Informe OS/orçamento e valor válido.');
+      showToast('Informe OS/orçamento e valor válido.', 'error');
       return;
     }
     await createPayment({
@@ -69,7 +77,7 @@ export default function Finance() {
             {budgets.map(budget => <option key={budget.id} value={budget.id}>Orçamento #{budget.id.slice(-6).toUpperCase()} - {budget.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</option>)}
           </select>
           <input className="form-input" type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(Number(e.target.value))} placeholder="Valor" />
-          <select className="form-input" value={method} onChange={e => setMethod(e.target.value as any)}>
+          <select className="form-input" value={method} onChange={e => setMethod(e.target.value as Payment['method'])}>
             <option value="Pix">Pix</option>
             <option value="Dinheiro">Dinheiro</option>
             <option value="Cartao">Cartão</option>
@@ -77,7 +85,7 @@ export default function Finance() {
             <option value="Transferencia">Transferência</option>
             <option value="Outro">Outro</option>
           </select>
-          <select className="form-input" value={status} onChange={e => setStatus(e.target.value as any)}>
+          <select className="form-input" value={status} onChange={e => setStatus(e.target.value as Payment['status'])}>
             <option value="Pendente">Pendente</option>
             <option value="Parcial">Parcial</option>
             <option value="Pago">Pago</option>
@@ -95,11 +103,11 @@ export default function Finance() {
               <div key={payment.id} className="bg-[#1A1A1A] border border-white/5 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div>
                   <p className="font-bold text-white">{getClientById(payment.clientId)?.name || 'Cliente'}</p>
-                  <p className="text-xs text-white/40">{payment.method} - {new Date(payment.createdAt).toLocaleString('pt-BR')}</p>
+                  <p className="text-xs text-white/40">{payment.method} - {formatDateTime(payment.createdAt)}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <p className="font-black text-white">{payment.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
-                  <select value={payment.status} onChange={e => updatePayment(payment.id, { status: e.target.value as any, paidAt: e.target.value === 'Pago' ? new Date().toISOString() : payment.paidAt })} className="bg-[#111] border border-white/10 rounded-xl px-3 py-2 text-sm">
+                  <select value={payment.status} onChange={e => updatePayment(payment.id, { status: e.target.value as Payment['status'], paidAt: e.target.value === 'Pago' ? new Date().toISOString() : payment.paidAt })} className="bg-[#111] border border-white/10 rounded-xl px-3 py-2 text-sm">
                     <option value="Pendente">Pendente</option>
                     <option value="Parcial">Parcial</option>
                     <option value="Pago">Pago</option>

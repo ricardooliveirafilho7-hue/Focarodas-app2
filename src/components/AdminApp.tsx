@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   LayoutDashboard, 
   Car, 
@@ -7,7 +7,7 @@ import {
   History, 
   Settings as SettingsIcon,
   Bell,
-  User,
+  AlertTriangle,
   Search,
   Plus,
   Menu,
@@ -34,12 +34,23 @@ import Notifications from './admin/Notifications';
 type AdminRoute = 'dashboard' | 'serviceOrders' | 'clients' | 'vehicles' | 'budgets' | 'finance' | 'team' | 'reports' | 'notifications' | 'settings' | 'logs';
 
 export default function AdminApp() {
-  const { logout, currentUser, clients, vehicles, serviceOrders, messages, notifications } = useAppStore();
+  const { logout, currentUser, clients, vehicles, serviceOrders, messages, notifications, isUsingLocalFallback, dataError } = useAppStore();
   const [currentRoute, setCurrentRoute] = useState<AdminRoute>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isNewServiceModalOpen, setIsNewServiceModalOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
+  const searchRef = useRef<HTMLDivElement>(null);
   const unreadCount = messages.filter(message => !message.read).length + notifications.filter(notification => !notification.read).length;
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setGlobalSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const globalResults = globalSearch.trim()
     ? [
@@ -156,7 +167,7 @@ export default function AdminApp() {
           </div>
           
           <div className="flex items-center gap-6">
-            <div className="relative hidden md:block group">
+            <div className="relative hidden md:block group" ref={searchRef}>
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 w-4 h-4 group-focus-within:text-[#E53935] transition-colors" />
               <input 
                 type="text" 
@@ -195,6 +206,17 @@ export default function AdminApp() {
 
         {/* Scrollable Area */}
         <div className="flex-1 overflow-y-auto w-full hide-scrollbar">
+          {(isUsingLocalFallback || dataError) && (
+            <div className="mx-4 md:mx-8 mt-4 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl px-4 py-3 flex items-start gap-3">
+              <AlertTriangle size={16} className="text-yellow-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-yellow-300">
+                  {isUsingLocalFallback ? 'Modo local ativo - dados não persistem online' : 'Erro de conexão com Supabase'}
+                </p>
+                {dataError && <p className="text-xs text-yellow-300/70 mt-1">{dataError}</p>}
+              </div>
+            </div>
+          )}
           <div className="max-w-[1400px] mx-auto w-full">
             {currentRoute === 'dashboard' && <Dashboard />}
             {currentRoute === 'serviceOrders' && <ServiceOrders />}

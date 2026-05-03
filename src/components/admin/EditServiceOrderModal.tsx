@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../lib/store';
 import { X, Save, Image as ImageIcon, Clock, MessageSquare, FileText } from 'lucide-react';
-import { ServiceOrder } from '../../types';
+import { ServiceOrder, ServiceStatus } from '../../types';
 import { fileToDataUrl, uploadVehiclePhoto } from '../../lib/imageUpload';
 
 export default function EditServiceOrderModal({ order, onClose }: { order: ServiceOrder, onClose: () => void }) {
@@ -25,8 +25,8 @@ export default function EditServiceOrderModal({ order, onClose }: { order: Servi
       const previews = await Promise.all(selected.map(file => fileToDataUrl(file)));
       setPhotoFiles(prev => [...prev, ...selected]);
       setPhotos(prev => [...prev, ...previews]);
-    } catch (error: any) {
-      setErrorMsg(error?.message || 'Nao foi possivel carregar as fotos.');
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : 'Nao foi possivel carregar as fotos.');
     }
   };
 
@@ -43,8 +43,8 @@ export default function EditServiceOrderModal({ order, onClose }: { order: Servi
         await updateServiceOrder(order.id, { deliveryEstimate: delivery });
       }
       onClose();
-    } catch (error: any) {
-      setErrorMsg(error?.message || 'Erro ao salvar OS.');
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : 'Erro ao salvar OS.');
     } finally {
       setIsSaving(false);
     }
@@ -81,7 +81,7 @@ export default function EditServiceOrderModal({ order, onClose }: { order: Servi
               </label>
               <select 
                 value={status}
-                onChange={e => setStatus(e.target.value as any)}
+                onChange={e => setStatus(e.target.value as ServiceStatus)}
                 className="w-full form-input bg-[#111] text-lg font-bold"
               >
                 <option value="Em análise">🔍 Em análise (Orçamento)</option>
