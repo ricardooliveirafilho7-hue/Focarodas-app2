@@ -188,38 +188,120 @@ alter table public.budgets enable row level security;
 alter table public.budget_items enable row level security;
 alter table public.payments enable row level security;
 
--- Policies permissivas para teste integrado do app Vite.
--- As APIs serverless usam service_role e ignoram RLS. Para uma producao mais restrita,
--- substitua estas policies por regras baseadas em auth.uid() e cargos.
 drop policy if exists "foca clients public test access" on public.clients;
-create policy "foca clients public test access" on public.clients for all using (true) with check (true);
+drop policy if exists "clients_self_read" on public.clients;
+drop policy if exists "clients_employee_all" on public.clients;
+create policy "clients_self_read" on public.clients
+  for select using (auth.uid() = id);
+create policy "clients_employee_all" on public.clients
+  for all using (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  ) with check (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  );
 
 drop policy if exists "foca employees public test access" on public.employees;
-create policy "foca employees public test access" on public.employees for all using (true) with check (true);
+drop policy if exists "employees_self_read" on public.employees;
+drop policy if exists "employees_admin_all" on public.employees;
+create policy "employees_self_read" on public.employees
+  for select using (auth.uid() = id);
+create policy "employees_admin_all" on public.employees
+  for all using (
+    exists (select 1 from public.employees where id = auth.uid() and active = true and role in ('Administrador', 'Gerente'))
+  ) with check (
+    exists (select 1 from public.employees where id = auth.uid() and active = true and role in ('Administrador', 'Gerente'))
+  );
 
 drop policy if exists "foca vehicles public test access" on public.vehicles;
-create policy "foca vehicles public test access" on public.vehicles for all using (true) with check (true);
+drop policy if exists "vehicles_client_own" on public.vehicles;
+drop policy if exists "vehicles_employee_all" on public.vehicles;
+create policy "vehicles_client_own" on public.vehicles
+  for select using (client_id = auth.uid());
+create policy "vehicles_employee_all" on public.vehicles
+  for all using (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  ) with check (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  );
 
 drop policy if exists "foca service orders public test access" on public.service_orders;
-create policy "foca service orders public test access" on public.service_orders for all using (true) with check (true);
+drop policy if exists "orders_client_own" on public.service_orders;
+drop policy if exists "orders_employee_all" on public.service_orders;
+create policy "orders_client_own" on public.service_orders
+  for select using (client_id = auth.uid());
+create policy "orders_employee_all" on public.service_orders
+  for all using (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  ) with check (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  );
 
 drop policy if exists "foca messages public test access" on public.messages;
-create policy "foca messages public test access" on public.messages for all using (true) with check (true);
-
-drop policy if exists "foca audit logs public test access" on public.audit_logs;
-create policy "foca audit logs public test access" on public.audit_logs for all using (true) with check (true);
+drop policy if exists "messages_client_own" on public.messages;
+drop policy if exists "messages_employee_all" on public.messages;
+create policy "messages_client_own" on public.messages
+  for select using (client_id = auth.uid());
+create policy "messages_employee_all" on public.messages
+  for all using (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  ) with check (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  );
 
 drop policy if exists "foca notifications public test access" on public.notifications;
-create policy "foca notifications public test access" on public.notifications for all using (true) with check (true);
+drop policy if exists "notifications_client_own" on public.notifications;
+drop policy if exists "notifications_employee_all" on public.notifications;
+create policy "notifications_client_own" on public.notifications
+  for select using (client_id = auth.uid() or client_id is null);
+create policy "notifications_employee_all" on public.notifications
+  for all using (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  ) with check (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  );
 
 drop policy if exists "foca budgets public test access" on public.budgets;
-create policy "foca budgets public test access" on public.budgets for all using (true) with check (true);
+drop policy if exists "budgets_client_own" on public.budgets;
+drop policy if exists "budgets_employee_all" on public.budgets;
+create policy "budgets_client_own" on public.budgets
+  for select using (client_id = auth.uid() and status in ('Enviado', 'Aprovado'));
+create policy "budgets_employee_all" on public.budgets
+  for all using (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  ) with check (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  );
 
 drop policy if exists "foca budget items public test access" on public.budget_items;
-create policy "foca budget items public test access" on public.budget_items for all using (true) with check (true);
+drop policy if exists "budget_items_employee_all" on public.budget_items;
+create policy "budget_items_employee_all" on public.budget_items
+  for all using (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  ) with check (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  );
 
 drop policy if exists "foca payments public test access" on public.payments;
-create policy "foca payments public test access" on public.payments for all using (true) with check (true);
+drop policy if exists "payments_client_own" on public.payments;
+drop policy if exists "payments_employee_all" on public.payments;
+create policy "payments_client_own" on public.payments
+  for select using (client_id = auth.uid());
+create policy "payments_employee_all" on public.payments
+  for all using (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  ) with check (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  );
+
+drop policy if exists "foca audit logs public test access" on public.audit_logs;
+drop policy if exists "logs_employee_read" on public.audit_logs;
+drop policy if exists "logs_insert_any_auth" on public.audit_logs;
+create policy "logs_employee_read" on public.audit_logs
+  for select using (
+    exists (select 1 from public.employees where id = auth.uid() and active = true)
+  );
+create policy "logs_insert_any_auth" on public.audit_logs
+  for insert with check (auth.uid() is not null);
 
 insert into storage.buckets (id, name, public)
 values ('vehicle-photos', 'vehicle-photos', true)

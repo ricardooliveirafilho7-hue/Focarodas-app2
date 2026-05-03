@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../../lib/store';
 import { Search, Filter, Eye, Edit2, Calendar, Users, ClipboardList, Plus } from 'lucide-react';
 import EditServiceOrderModal from './EditServiceOrderModal';
 import ViewServiceOrderModal from './ViewServiceOrderModal';
 import NewServiceModal from './NewServiceModal';
 import { ServiceOrder, ServiceStatus } from '../../types';
+import { formatDate } from '../../lib/dateUtils';
+import { SkeletonCard } from '../SkeletonCard';
 
 type FilterType = 'Todas' | 'Em Serviço' | 'Aguardando Peças' | 'Pronto';
 
@@ -32,6 +34,12 @@ export default function ServiceOrders() {
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
   const [viewingOrder, setViewingOrder] = useState<ServiceOrder | null>(null);
   const [isNewServiceModalOpen, setIsNewServiceModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIsLoading(false), 250);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const filtered = serviceOrders.filter(os => {
     if (statusFilter && os.status !== statusFilter) return false;
@@ -117,7 +125,11 @@ export default function ServiceOrders() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
-        {filtered.map(os => {
+        {isLoading && Array.from({ length: 4 }).map((_, index) => (
+          <SkeletonCard key={`service-order-skeleton-${index}`} />
+        ))}
+
+        {!isLoading && filtered.map(os => {
           const client = getClientById(os.clientId);
           const vehicle = getVehicleById(os.vehicleId);
 
@@ -152,7 +164,7 @@ export default function ServiceOrders() {
                 <div>
                   <p className="text-[10px] text-white/40 uppercase mb-1">Previsão</p>
                   <p className="text-sm font-medium flex items-center gap-1.5 min-h-[20px]">
-                    <Calendar size={14} className="text-white/40"/> {os.deliveryEstimate ? new Date(os.deliveryEstimate).toLocaleDateString('pt-BR') : '-'}
+                    <Calendar size={14} className="text-white/40"/> {os.deliveryEstimate ? formatDate(os.deliveryEstimate) : '-'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -169,7 +181,7 @@ export default function ServiceOrders() {
         })}
       </div>
 
-      {filtered.length === 0 && (
+      {!isLoading && filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center bg-[#1A1A1A]/50 border border-dashed border-white/10 rounded-3xl mt-4">
           <ClipboardList className="w-12 h-12 text-white/20 mb-4" />
           <h3 className="text-xl font-bold text-white mb-2">Nenhuma ordem encontrada</h3>

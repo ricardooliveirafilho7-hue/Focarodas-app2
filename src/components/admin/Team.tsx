@@ -3,7 +3,7 @@ import { useAppStore } from '../../lib/store';
 import { Mail, Shield, UserX, KeyRound, Search, CheckCircle2, UserSquare2, Users, Plus, UserCheck, X, Crown, Save } from 'lucide-react';
 import { Employee, EmployeeRole } from '../../types';
 
-function EmployeeModal({ employee, onClose, onSave }: { employee?: Employee | null, onClose: () => void, onSave: (e: any) => Promise<{success: boolean, error?: string}> }) {
+function EmployeeModal({ employee, onClose, onSave }: { employee?: Employee | null, onClose: () => void, onSave: (e: Omit<Employee, 'id'>) => Promise<{success: boolean, error?: string}> }) {
   const [formData, setFormData] = useState({
     name: employee?.name || '',
     email: employee?.email || '',
@@ -83,7 +83,7 @@ function EmployeeModal({ employee, onClose, onSave }: { employee?: Employee | nu
 
                <div>
                   <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2 ml-1">Senha Segura</label>
-                  <input type="text" required={!employee} value={formData.password} onChange={e=>setFormData({...formData, password: e.target.value})} className="w-full form-input bg-[#111] font-mono" placeholder={employee ? 'Preencha apenas se quiser trocar' : 'Senha Forte'} />
+                  <input type="password" autoComplete="new-password" required={!employee} value={formData.password} onChange={e=>setFormData({...formData, password: e.target.value})} className="w-full form-input bg-[#111] font-mono" placeholder={employee ? 'Preencha apenas se quiser trocar' : 'Senha Forte'} />
                </div>
              </div>
           </div>
@@ -154,13 +154,13 @@ export default function Team() {
     { label: 'Gerentes', value: employees.filter(e => e.role === 'Gerente').length, icon: Crown, color: 'text-yellow-500' },
   ];
 
-  const handleSaveEmployee = async (data: any) => {
+  const handleSaveEmployee = async (data: Omit<Employee, 'id'>) => {
     let res;
     if (modalEmployee) {
       const success = await updateEmployee(modalEmployee.id, data);
       res = success ? { success: true } : { success: false, error: 'Erro ao atualizar funcionário. Verifique os dados e a conexão.' };
     } else {
-      const result = await createEmployee(data) as any;
+      const result = await createEmployee(data);
       if (result && result.success === false) {
           res = result; // preserve error message
       } else {

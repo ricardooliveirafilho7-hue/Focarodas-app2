@@ -44,8 +44,8 @@ export default function StaffUpdateModal({ orderId, onClose }: { orderId: string
       const previews = await Promise.all(selected.map(file => fileToDataUrl(file)));
       setPhotoFiles(prev => [...prev, ...selected]);
       setPhotos(prev => [...prev, ...previews]);
-    } catch (error: any) {
-      setErrorMsg(error?.message || 'Nao foi possivel carregar as fotos.');
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : 'Nao foi possivel carregar as fotos.');
     }
   };
 
@@ -59,8 +59,8 @@ export default function StaffUpdateModal({ orderId, onClose }: { orderId: string
         : photos;
       await addVehicleUpdate(orderId, status, publicMessage, internalNote, uploadedPhotos, estimate, notify);
       onClose();
-    } catch (error: any) {
-      setErrorMsg(error?.message || 'Erro ao salvar atualizacao.');
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : 'Erro ao salvar atualizacao.');
     } finally {
       setIsSaving(false);
     }
@@ -110,11 +110,10 @@ export default function StaffUpdateModal({ orderId, onClose }: { orderId: string
             <label className="text-[10px] uppercase font-bold tracking-widest text-white/50 mb-3 block">Mensagem ao Cliente</label>
             <textarea
               rows={3}
-              placeholder="Informe o cliente sobre o progresso atual..."
+              placeholder="Informe o cliente sobre o progresso atual (opcional)..."
               value={publicMessage}
               onChange={e => setPublicMessage(e.target.value)}
               className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white placeholder-white/30 outline-none focus:border-[var(--color-brand-red)] transition-colors resize-none"
-              required
             />
           </div>
 

@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../lib/store';
 import { Search, User as UserIcon, Phone, Clock, AlertTriangle, MoreVertical, Car, Plus } from 'lucide-react';
+import { formatDate, formatDateTime, parseLocalDate } from '../lib/dateUtils';
+import { ServiceOrder } from '../types';
 
 export default function StaffVehicleList({ onSelectVehicle, onNewService }: { onSelectVehicle: (id: string) => void, onNewService?: () => void }) {
   const { serviceOrders, getVehicleById, clients, sendMessage, currentUser, role } = useAppStore();
   const [search, setSearch] = useState('');
 
-  const activeOrders = serviceOrders.filter(o => o.status !== 'Finalizado' && o.status !== 'Retirada');
+  const activeOrders = serviceOrders.filter(o =>
+    !['Finalizado', 'Retirada', 'Cancelado'].includes(o.status)
+  );
 
   const filtered = activeOrders.filter(order => {
     const vehicle = getVehicleById(order.vehicleId);
@@ -24,12 +28,12 @@ export default function StaffVehicleList({ onSelectVehicle, onNewService }: { on
     }
   };
 
-  const lastUpdateLabel = (order: any) => {
+  const lastUpdateLabel = (order: ServiceOrder) => {
     const date = order.updates?.[0]?.date || order.updatedAt || order.createdAt;
-    return date ? new Date(date).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Sem atualização';
+    return date ? formatDateTime(date, { dateStyle: 'short', timeStyle: 'short' }) : 'Sem atualização';
   };
 
-  const notifyClientReady = async (order: any) => {
+  const notifyClientReady = async (order: ServiceOrder) => {
     const vehicle = getVehicleById(order.vehicleId);
     await sendMessage({
       clientId: order.clientId,
@@ -80,7 +84,7 @@ export default function StaffVehicleList({ onSelectVehicle, onNewService }: { on
         {filtered.map(order => {
           const client = clients.find(c => c.id === order.clientId);
           const vehicle = getVehicleById(order.vehicleId);
-          const isDelayed = new Date(order.deliveryEstimate) < new Date();
+          const isDelayed = parseLocalDate(order.deliveryEstimate) < new Date();
 
           return (
             <div key={order.id} className="bg-[var(--color-card-bg)] border border-white/5 rounded-2xl overflow-hidden shadow-lg flex flex-col group relative">
@@ -143,7 +147,7 @@ export default function StaffVehicleList({ onSelectVehicle, onNewService }: { on
                         </p>
                         <p className="text-sm font-medium text-white">
                             {isDelayed ? order.updates[0]?.internalNote || "Peça em importação" : 
-                            new Date(order.deliveryEstimate).toLocaleDateString('pt-BR')}
+                            formatDate(order.deliveryEstimate)}
                         </p>
                         </div>
                     </div>

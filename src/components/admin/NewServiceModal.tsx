@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../lib/store';
 import { X, Search, CheckCircle2, Car, Calendar, Info, UserPlus, ChevronRight, User, History, ClipboardList, UploadCloud } from 'lucide-react';
-import { Vehicle, Client } from '../../types';
+import { Vehicle, Client, ServiceOrder, ServiceStatus } from '../../types';
 import { fileToDataUrl, uploadVehiclePhoto } from '../../lib/imageUpload';
 
 export default function NewServiceModal({ onClose, defaultClientId }: { onClose: () => void, defaultClientId?: string }) {
-  const { clients, vehicles, createClient, createVehicle, createServiceOrder } = useAppStore();
+  const { clients, vehicles, employees, createClient, createVehicle, createServiceOrder } = useAppStore();
   
   const [step, setStep] = useState<1 | 2 | 3>(defaultClientId ? 2 : 1);
   
@@ -17,17 +17,17 @@ export default function NewServiceModal({ onClose, defaultClientId }: { onClose:
 
   // Step 2: Vehicle
   const [vehicleMode, setVehicleMode] = useState<'select' | 'new'>('select');
-  const [searchVehicle, setSearchVehicle] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [newVehicle, setNewVehicle] = useState({ model: '', plate: '', year: '', color: '', photo: '', observations: '' });
   const [newVehiclePhotoFile, setNewVehiclePhotoFile] = useState<File | null>(null);
 
   // Step 3: Service Order
-  const [service, setService] = useState({ 
-    servicesFull: '', 
-    observations: '', 
-    initialStatus: 'Recebido' as any, 
-    deliveryEstimate: new Date(Date.now() + 86400000).toISOString().split('T')[0] 
+  const [service, setService] = useState({
+    servicesFull: '',
+    observations: '',
+    initialStatus: 'Recebido' as ServiceStatus,
+    deliveryEstimate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    technicianId: ''
   });
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -64,8 +64,8 @@ export default function NewServiceModal({ onClose, defaultClientId }: { onClose:
     try {
       const preview = await fileToDataUrl(file);
       setNewVehicle(prev => ({ ...prev, photo: preview }));
-    } catch (error: any) {
-      setErrorMsg(error?.message || 'Nao foi possivel carregar a foto.');
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : 'Nao foi possivel carregar a foto.');
     }
   };
 
@@ -150,7 +150,8 @@ export default function NewServiceModal({ onClose, defaultClientId }: { onClose:
         deliveryEstimate: service.deliveryEstimate,
         servicesFull: service.servicesFull.trim(),
         observations: service.observations.trim(),
-      } as any);
+        technicianId: service.technicianId || undefined,
+      } as Omit<ServiceOrder, 'id' | 'updates'>);
 
       if (!createdOrder?.id) {
         setErrorMsg('Não foi possível criar a Ordem de Serviço.');
@@ -448,7 +449,7 @@ export default function NewServiceModal({ onClose, defaultClientId }: { onClose:
                       <div className="relative">
                         <select 
                           value={service.initialStatus} 
-                          onChange={e=>setService({...service, initialStatus: e.target.value as any})}
+                          onChange={e=>setService({...service, initialStatus: e.target.value as ServiceStatus})}
                           className="w-full bg-[#151515] border border-white/10 rounded-xl p-4 text-white focus:border-[var(--color-brand-red)] outline-none appearance-none"
                         >
                           <option value="Recebido">📥 Recebido (Pátio)</option>
@@ -469,6 +470,22 @@ export default function NewServiceModal({ onClose, defaultClientId }: { onClose:
                         onChange={e=>setService({...service, deliveryEstimate: e.target.value})}
                         className="w-full bg-[#151515] border border-white/10 rounded-xl p-4 text-white focus:border-[var(--color-brand-red)] outline-none [color-scheme:dark]"
                       />
+                   </div>
+
+                   <div className="md:col-span-2">
+                      <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">
+                        Técnico Responsável <span className="lowercase font-normal text-white/30">(opcional)</span>
+                      </label>
+                      <select
+                        value={service.technicianId}
+                        onChange={e => setService({ ...service, technicianId: e.target.value })}
+                        className="w-full bg-[#151515] border border-white/10 rounded-xl p-4 text-white focus:border-[var(--color-brand-red)] outline-none"
+                      >
+                        <option value="">Sem técnico atribuído</option>
+                        {employees.filter(employee => employee.active && employee.role === 'Técnico').map(employee => (
+                          <option key={employee.id} value={employee.id}>{employee.name}</option>
+                        ))}
+                      </select>
                    </div>
 
                    <div className="md:col-span-2">
@@ -496,9 +513,9 @@ export default function NewServiceModal({ onClose, defaultClientId }: { onClose:
             </div>
           )}
           <div className="flex gap-3 justify-between items-center">
-          <button 
+          <button
             type="button"
-            onClick={() => step > 1 ? setStep(s => (s - 1) as any) : onClose()} 
+            onClick={() => step > 1 ? setStep(s => (s === 3 ? 2 : 1)) : onClose()}
             disabled={isSaving}
             className="px-6 py-3 rounded-xl font-medium border border-white/10 bg-[#222] hover:bg-white/10 transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../lib/store';
 import { Search, Download, Clock, Edit3, Plus, AlertTriangle, Trash2, Shield, CalendarDays } from 'lucide-react';
+import { formatDateTime } from '../../lib/dateUtils';
 
 export default function Logs() {
   const { logs } = useAppStore();
@@ -32,6 +33,20 @@ export default function Logs() {
     }
   };
 
+  const handleExportPDF = () => {
+    const content = filtered.map(log =>
+      `[${formatDateTime(log.createdAt)}] ${log.userName} - ${log.action} (${log.target})`
+    ).join('\n');
+
+    const blob = new Blob([`FOCA RODAS - Relatorio de Auditoria\nGerado em: ${new Date().toLocaleString('pt-BR')}\n\n${content}`], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `focarodas-logs-${new Date().toISOString().split('T')[0]}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="p-4 md:p-8">
       <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -41,8 +56,8 @@ export default function Logs() {
           </h1>
           <p className="text-white/50 text-sm mt-1 font-medium">Histórico imutável de ações no sistema.</p>
         </div>
-        <button className="h-[42px] px-6 rounded-xl border border-white/10 bg-[#1C1C1F] hover:bg-white hover:text-black flex items-center justify-center gap-2 text-sm font-bold tracking-wide transition-all shadow-lg text-white/80">
-            <Download size={16} /> Exportar Relatório PDF
+        <button onClick={handleExportPDF} className="h-[42px] px-6 rounded-xl border border-white/10 bg-[#1C1C1F] hover:bg-white hover:text-black flex items-center justify-center gap-2 text-sm font-bold tracking-wide transition-all shadow-lg text-white/80">
+            <Download size={16} /> Exportar Logs
         </button>
       </div>
 
@@ -98,7 +113,7 @@ export default function Logs() {
                     <span className="text-white font-medium">{log.action}</span>
                   </p>
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#E53935] flex items-center gap-1.5 bg-[#E53935]/10 px-3 py-1.5 rounded-lg border border-[#E53935]/20 w-fit shrink-0">
-                    <CalendarDays size={12} /> {new Date(log.createdAt).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' })}
+                    <CalendarDays size={12} /> {formatDateTime(log.createdAt, { dateStyle:'short', timeStyle:'short' })}
                   </span>
                 </div>
                 

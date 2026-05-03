@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../../lib/store';
-import { Wrench, CheckCircle2, AlertTriangle, Hourglass, FileText, Users, LogIn } from 'lucide-react';
+import { Wrench, CheckCircle2, AlertTriangle, Hourglass, Users, LogIn } from 'lucide-react';
+import { parseLocalDate } from '../../lib/dateUtils';
 
 export default function Dashboard() {
   const { serviceOrders, employees, clients } = useAppStore();
@@ -8,9 +9,8 @@ export default function Dashboard() {
   const emAtendimento = serviceOrders.filter(v => v.status === 'Em reparo' || v.status === 'Em análise' || v.status === 'Pintura').length;
   const pronto = serviceOrders.filter(v => v.status === 'Pronto' || v.status === 'Finalizado').length;
   const aguardandoPecas = serviceOrders.filter(v => v.status === 'Aguardando peças').length;
-  const atrasados = serviceOrders.filter(v => new Date(v.deliveryEstimate) < new Date() && v.status !== 'Finalizado' && v.status !== 'Retirada').length;
+  const atrasados = serviceOrders.filter(v => parseLocalDate(v.deliveryEstimate) < new Date() && !['Finalizado', 'Retirada', 'Cancelado'].includes(v.status)).length;
   const activeEmployees = employees.filter(e => e.active).length;
-  const orcamentos = serviceOrders.filter(v => v.status === 'Em análise').length; // For now
   const clientes = clients.length;
 
   const stats = [

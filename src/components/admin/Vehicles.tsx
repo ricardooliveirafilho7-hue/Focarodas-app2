@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../../lib/store';
-import { Search, User as UserIcon, Calendar, Car, Plus, X, Image as ImageIcon, UploadCloud } from 'lucide-react';
+import { Search, User as UserIcon, Car, Plus, X, UploadCloud } from 'lucide-react';
 import { Vehicle } from '../../types';
 import { fileToDataUrl, uploadVehiclePhoto } from '../../lib/imageUpload';
+import { useToast } from '../Toast';
+import { SkeletonCard } from '../SkeletonCard';
 
 export default function Vehicles() {
   const { vehicles, clients, getClientById, createVehicle, updateVehicle } = useAppStore();
+  const { showToast } = useToast();
   const [search, setSearch] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
@@ -29,6 +33,11 @@ export default function Vehicles() {
     const q = search.toLowerCase();
     return (v.model || '').toLowerCase().includes(q) || (v.plate || '').toLowerCase().includes(q);
   });
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIsLoading(false), 250);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const openNewModal = () => {
     setEditingVehicle(null);
@@ -66,7 +75,7 @@ export default function Vehicles() {
     e.preventDefault();
     setErrorMsg('');
     if (!formData.clientId) {
-        alert('Por favor, selecione um cliente.');
+        showToast('Por favor, selecione um cliente.', 'error');
         return;
     }
 
@@ -83,8 +92,8 @@ export default function Vehicles() {
         await createVehicle(payload);
       }
       setIsModalOpen(false);
-    } catch (error: any) {
-      setErrorMsg(error?.message || 'Erro ao salvar a foto do veiculo.');
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : 'Erro ao salvar a foto do veiculo.');
     } finally {
       setIsSaving(false);
     }
@@ -97,8 +106,8 @@ export default function Vehicles() {
     try {
       const preview = await fileToDataUrl(file);
       setFormData(prev => ({ ...prev, photo: preview }));
-    } catch (error: any) {
-      setErrorMsg(error?.message || 'Nao foi possivel carregar a foto.');
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : 'Nao foi possivel carregar a foto.');
     }
   };
 
@@ -132,7 +141,10 @@ export default function Vehicles() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6">
-        {filtered.map(v => {
+        {isLoading && Array.from({ length: 4 }).map((_, index) => (
+          <SkeletonCard key={`vehicle-skeleton-${index}`} />
+        ))}
+        {!isLoading && filtered.map(v => {
           const client = getClientById(v.clientId);
           
           return (
@@ -178,7 +190,7 @@ export default function Vehicles() {
         })}
       </div>
 
-      {filtered.length === 0 && (
+      {!isLoading && filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center bg-[#1A1A1A]/50 border border-dashed border-white/10 rounded-3xl mt-4">
              <Car className="w-12 h-12 text-white/20 mb-4" />
              <h3 className="text-xl font-bold text-white mb-2">Nenhum veículo encontrado</h3>

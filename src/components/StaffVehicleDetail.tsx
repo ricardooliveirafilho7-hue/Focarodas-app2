@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useAppStore } from '../lib/store';
 import { ChevronLeft, Calendar, Camera, Plus, Check } from 'lucide-react';
 import StaffUpdateModal from './StaffUpdateModal';
-import { ServiceStatus } from '../types';
 import { Send, X } from 'lucide-react';
+import { STATUS_SEQUENCE } from '../lib/constants';
+import { formatDate } from '../lib/dateUtils';
+import { ServiceStatus } from '../types';
 
 function SendMessageModal({ clientId, onClose }: { clientId: string, onClose: () => void }) {
   const { sendMessage, currentUser, role } = useAppStore();
@@ -41,29 +43,13 @@ function SendMessageModal({ clientId, onClose }: { clientId: string, onClose: ()
         <form onSubmit={handleSend} className="p-6 flex flex-col space-y-4">
           <div><input type="text" required value={title} onChange={e=>setTitle(e.target.value)} className="w-full bg-[#1A1A1A] border border-white/5 rounded-xl p-3 text-white" placeholder="Título" /></div>
           <div><textarea required value={content} onChange={e=>setContent(e.target.value)} className="w-full bg-[#1A1A1A] border border-white/5 rounded-xl p-3 text-white" rows={4} placeholder="Mensagem..." /></div>
-          <div><select value={type} onChange={e=>setType(e.target.value as any)} className="w-full bg-[#1A1A1A] border border-white/5 rounded-xl p-3 text-white"><option value="info">Info</option><option value="success">Sucesso</option><option value="warning">Aviso</option></select></div>
+          <div><select value={type} onChange={e=>setType(e.target.value as typeof type)} className="w-full bg-[#1A1A1A] border border-white/5 rounded-xl p-3 text-white"><option value="info">Info</option><option value="success">Sucesso</option><option value="warning">Aviso</option></select></div>
           <button type="submit" disabled={isSending} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold p-3 rounded-xl">{isSending ? 'Enviando...' : 'Enviar Agora'}</button>
         </form>
       </div>
     </div>
   );
 }
-
-// Status tracking sequence
-export const STATUS_SEQUENCE: ServiceStatus[] = [
-  'Recebido', 
-  'Em análise', 
-  'Aguardando aprovação', 
-  'Aprovado', 
-  'Aguardando peças', 
-  'Em reparo', 
-  'Pintura', 
-  'Alinhamento/Balanceamento', 
-  'Pronto', 
-  'Finalizado', 
-  'Retirada', 
-  'Cancelado'
-];
 
 export default function StaffVehicleDetail({ orderId, onBack }: { orderId: string, onBack: () => void }) {
   const { getVehicleById, getClientById, serviceOrders } = useAppStore();
@@ -115,9 +101,9 @@ export default function StaffVehicleDetail({ orderId, onBack }: { orderId: strin
                   style={{ width: `${Math.max(0, (currentStatusIndex / (STATUS_SEQUENCE.length - 1)) * 100)}%` }}
                 ></div>
 
-                {['Recebido', 'Em análise', order.status, 'Finalizado', 'Retirada'].filter((v, i, a) => a.indexOf(v) === i).map((step, idx, arr) => {
-                  let isCompleted = STATUS_SEQUENCE.indexOf(step as any) <= currentStatusIndex;
-                  let isCurrent = step === order.status;
+                {['Recebido', 'Em análise', order.status, 'Finalizado', 'Retirada'].filter((v, i, a) => a.indexOf(v) === i).map((step, idx) => {
+                  const isCompleted = STATUS_SEQUENCE.indexOf(step as ServiceStatus) <= currentStatusIndex;
+                  const isCurrent = step === order.status;
                   return (
                     <div key={idx} className="flex flex-col items-center gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 shadow-lg transition-colors
@@ -230,7 +216,7 @@ export default function StaffVehicleDetail({ orderId, onBack }: { orderId: strin
                       <Calendar className="w-4 h-4 text-[var(--color-brand-red)]" />
                       <span className="text-[10px] uppercase font-bold text-white/60 tracking-wider">Entrega Programada</span>
                     </div>
-                    <span className="text-sm font-bold text-white">{new Date(order.deliveryEstimate).toLocaleDateString('pt-BR')}</span>
+                    <span className="text-sm font-bold text-white">{formatDate(order.deliveryEstimate)}</span>
                  </div>
               </div>
            </div>
@@ -243,9 +229,9 @@ export default function StaffVehicleDetail({ orderId, onBack }: { orderId: strin
              <div className="space-y-4 max-h-[300px] overflow-y-auto hide-scrollbar pr-2">
                 {order.updates.filter(u => u.internalNote).map(u => (
                   <div key={u.id} className="border-l-2 border-white/10 pl-4 py-1 relative">
-                     <p className="text-sm text-white/60 italic leading-relaxed mb-2">"{u.internalNote}"</p>
+                     <p className="text-sm text-white/60 italic leading-relaxed mb-2">{`"${u.internalNote}"`}</p>
                      <div className="flex justify-between items-center">
-                        <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">{new Date(u.date).toLocaleDateString('pt-BR')}</span>
+                        <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">{formatDate(u.date)}</span>
                         <span className="text-[9px] font-bold text-white/50 bg-white/5 px-2 py-0.5 rounded uppercase">Mecânico</span>
                      </div>
                   </div>

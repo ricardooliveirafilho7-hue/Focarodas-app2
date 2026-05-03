@@ -1,7 +1,8 @@
 import React from 'react';
 import { useAppStore } from '../../lib/store';
-import { X, Calendar, Clock, MessageSquare, Car, Shield, Wrench, FileText, Download } from 'lucide-react';
+import { X, Calendar, Clock, MessageSquare, Car, Shield, Wrench, FileText, Download, User as UserIcon } from 'lucide-react';
 import { ServiceOrder } from '../../types';
+import { formatDate, formatDateTime } from '../../lib/dateUtils';
 
 export default function ViewServiceOrderModal({ order, onClose }: { order: ServiceOrder, onClose: () => void }) {
   const { getClientById, getVehicleById } = useAppStore();
@@ -55,7 +56,7 @@ export default function ViewServiceOrderModal({ order, onClose }: { order: Servi
                <div className="col-span-2">
                   <p className="text-[10px] uppercase text-white/40 font-bold tracking-widest mb-1.5">Previsão Entrega</p>
                   <p className="text-xl font-bold text-[#E53935] flex items-center gap-2">
-                     <Calendar size={18} /> {new Date(order.deliveryEstimate).toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                     <Calendar size={18} /> {formatDate(order.deliveryEstimate, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </p>
                </div>
              </div>
@@ -115,7 +116,7 @@ export default function ViewServiceOrderModal({ order, onClose }: { order: Servi
                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4 border-b border-white/5 pb-4">
                               <span className="font-black text-lg text-white">{update.status}</span>
                               <span className="text-[10px] font-bold uppercase tracking-widest text-[#E53935] flex items-center gap-1.5 bg-[#E53935]/10 px-2.5 py-1 rounded-md border border-[#E53935]/20 w-fit">
-                                <Clock size={12} /> {new Date(update.date).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).replace(' de ', ' ')}
+                                <Clock size={12} /> {formatDateTime(update.date, { day: '2-digit', month: 'short', hour:'2-digit', minute:'2-digit' }).replace(' de ', ' ')}
                               </span>
                            </div>
                            
@@ -166,26 +167,5 @@ export default function ViewServiceOrderModal({ order, onClose }: { order: Servi
 
       </div>
     </div>
-  );
-}
-
-// User Icon helper since we didn't import User from lucide in the main block
-function UserIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
   );
 }

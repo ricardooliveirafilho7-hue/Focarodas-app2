@@ -1,10 +1,28 @@
 import React, { useState } from 'react';
 import { Store, ListFilter, MessageSquareText, Bell, MonitorSmartphone, Image as ImageIcon, Save, Check } from 'lucide-react';
+import { ConfirmModal } from '../ConfirmModal';
+
+interface CompanyData {
+  companyName?: string;
+  document?: string;
+  phone?: string;
+  address?: string;
+}
+
+const readCompanySettings = (): CompanyData => {
+  try {
+    return JSON.parse(localStorage.getItem('foca_settings') || '{}') as CompanyData;
+  } catch {
+    return {};
+  }
+};
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('empresa');
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [companyData, setCompanyData] = useState<CompanyData>(() => readCompanySettings());
 
   const tabs = [
     { id: 'empresa', label: 'Dados da Empresa', icon: Store },
@@ -16,22 +34,37 @@ export default function Settings() {
 
   const handleSave = () => {
     setIsSaving(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      localStorage.setItem('foca_settings', JSON.stringify(companyData));
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
-    }, 800);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
-    if(window.confirm('Tem certeza que deseja cancelar as alterações?')) {
-      // Logic to reset form would go here
-    }
+    setShowDiscardConfirm(true);
+  };
+
+  const updateCompanyData = (field: keyof CompanyData, value: string) => {
+    setCompanyData(prev => ({ ...prev, [field]: value }));
   };
 
   return (
     <div className="p-4 md:p-8 flex flex-col lg:flex-row gap-6 h-[calc(100vh-4rem)]">
+      {showDiscardConfirm && (
+        <ConfirmModal
+          title="Descartar alterações?"
+          message="Os campos serão recarregados a partir dos dados salvos neste navegador."
+          confirmLabel="Descartar"
+          onCancel={() => setShowDiscardConfirm(false)}
+          onConfirm={() => {
+            setCompanyData(readCompanySettings());
+            setShowDiscardConfirm(false);
+          }}
+        />
+      )}
       {/* Settings Nav */}
       <div className="lg:w-64 shrink-0 flex flex-col gap-2">
         <h2 className="text-2xl font-bold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent mb-4">
@@ -88,23 +121,23 @@ export default function Settings() {
                <div className="space-y-6">
                  <div>
                    <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2 ml-1">Nome Fantasia</label>
-                   <input type="text" defaultValue="Foca Rodas High Performance" className="w-full form-input bg-[#111] text-lg font-bold placeholder:text-white/20" />
+                   <input type="text" value={companyData.companyName || ''} onChange={e => updateCompanyData('companyName', e.target.value)} className="w-full form-input bg-[#111] text-lg font-bold placeholder:text-white/20" placeholder="Foca Rodas High Performance" />
                  </div>
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    <div>
                      <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2 ml-1">CNPJ / CPF</label>
-                     <input type="text" defaultValue="00.000.000/0001-00" className="w-full form-input bg-[#111] font-mono tracking-wider" />
+                     <input type="text" value={companyData.document || ''} onChange={e => updateCompanyData('document', e.target.value)} className="w-full form-input bg-[#111] font-mono tracking-wider" placeholder="00.000.000/0001-00" />
                    </div>
                    <div>
                      <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2 ml-1">Telefone / WhatsApp</label>
-                     <input type="text" defaultValue="(11) 99999-9999" className="w-full form-input bg-[#111] font-mono tracking-wider" />
+                     <input type="text" value={companyData.phone || ''} onChange={e => updateCompanyData('phone', e.target.value)} className="w-full form-input bg-[#111] font-mono tracking-wider" placeholder="(11) 99999-9999" />
                    </div>
                  </div>
 
                  <div>
                    <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2 ml-1">Endereço Completo</label>
-                   <input type="text" defaultValue="Av. das Nações Unidas, 12345 - Galpão 4, São Paulo - SP" className="w-full form-input bg-[#111]" />
+                   <input type="text" value={companyData.address || ''} onChange={e => updateCompanyData('address', e.target.value)} className="w-full form-input bg-[#111]" placeholder="Av. das Nações Unidas, 12345 - Galpão 4, São Paulo - SP" />
                  </div>
                  
                  <div className="border-t border-white/5 pt-8 mt-4">

@@ -20,8 +20,8 @@ export default function Login() {
       if (!res.success) {
         setErrorMsg(res.error || 'Login ou senha inválidos.');
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Erro ao conectar com o banco.');
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Erro ao conectar com o banco.');
     } finally {
       setLoading(false);
     }
