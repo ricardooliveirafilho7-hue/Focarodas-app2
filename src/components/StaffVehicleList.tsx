@@ -3,6 +3,7 @@ import { useAppStore } from '../lib/store';
 import { Search, User as UserIcon, Phone, Clock, AlertTriangle, MoreVertical, Car, Plus } from 'lucide-react';
 import { formatDate, formatDateTime, parseLocalDate } from '../lib/dateUtils';
 import { ServiceOrder } from '../types';
+import { SupabaseImage } from './SupabaseImage';
 
 export default function StaffVehicleList({ onSelectVehicle, onNewService }: { onSelectVehicle: (id: string) => void, onNewService?: () => void }) {
   const { serviceOrders, getVehicleById, clients, sendMessage, currentUser, role } = useAppStore();
@@ -21,9 +22,9 @@ export default function StaffVehicleList({ onSelectVehicle, onNewService }: { on
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Em Reparo': case 'Pintura': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'Em reparo': case 'Pintura': case 'Em análise': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
       case 'Pronto': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'Aguardando Peças': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+      case 'Aguardando pe?as': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
       default: return 'bg-white/10 text-white border-white/20';
     }
   };
@@ -89,7 +90,7 @@ export default function StaffVehicleList({ onSelectVehicle, onNewService }: { on
           return (
             <div key={order.id} className="bg-[var(--color-card-bg)] border border-white/5 rounded-2xl overflow-hidden shadow-lg flex flex-col group relative">
               <div className="h-48 relative overflow-hidden bg-black">
-                <img 
+                <SupabaseImage
                   src={vehicle?.photo || 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=800'} 
                   alt={vehicle?.model} 
                   className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500"

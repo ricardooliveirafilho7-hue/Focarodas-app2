@@ -6,6 +6,7 @@ import { Send, X } from 'lucide-react';
 import { STATUS_SEQUENCE } from '../lib/constants';
 import { formatDate } from '../lib/dateUtils';
 import { ServiceStatus } from '../types';
+import { SupabaseImage } from './SupabaseImage';
 
 function SendMessageModal({ clientId, onClose }: { clientId: string, onClose: () => void }) {
   const { sendMessage, currentUser, role } = useAppStore();
@@ -137,7 +138,7 @@ export default function StaffVehicleDetail({ orderId, onBack }: { orderId: strin
              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {order.updates.flatMap(u => u.photos || []).map((img, i) => (
                   <div key={i} className="aspect-square bg-black/50 rounded-2xl border border-white/10 overflow-hidden relative group">
-                     <img src={img} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                     <SupabaseImage src={img} alt="Foto do servico" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                   </div>
                 ))}
                 

@@ -3,6 +3,7 @@ import { useAppStore } from '../lib/store';
 import { Car, Clock, AlertTriangle, MessageCircle, CheckCircle2 } from 'lucide-react';
 import { Search, Plus } from 'lucide-react';
 import { parseLocalDate } from '../lib/dateUtils';
+import { SupabaseImage } from './SupabaseImage';
 
 export default function StaffDashboard({ onNavigate, onNewService }: { onNavigate: (tab: string) => void, onNewService?: () => void }) {
   const { serviceOrders, getVehicleById, currentUser } = useAppStore();
@@ -83,7 +84,7 @@ export default function StaffDashboard({ onNavigate, onNewService }: { onNavigat
                   <h3 className="font-bold text-lg mb-4 text-white line-clamp-1">{vehicle?.model}</h3>
                   <div className="flex gap-3 items-center">
                     <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-white/10 bg-black/50">
-                       {vehicle?.photo ? <img src={vehicle.photo} alt={vehicle.model} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-white/5"><Car size={16} className="text-white/20"/></div>}
+                       {vehicle?.photo ? <SupabaseImage src={vehicle.photo} alt={vehicle.model} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-white/5"><Car size={16} className="text-white/20"/></div>}
                     </div>
                     <div className="flex-1">
                       <p className="text-xs text-white/60 line-clamp-2">{order.updates[0]?.internalNote || "Nenhuma nota recente"}</p>

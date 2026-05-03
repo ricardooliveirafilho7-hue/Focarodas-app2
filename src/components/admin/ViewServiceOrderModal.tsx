@@ -3,6 +3,7 @@ import { useAppStore } from '../../lib/store';
 import { X, Calendar, Clock, MessageSquare, Car, Shield, Wrench, FileText, Download, User as UserIcon } from 'lucide-react';
 import { ServiceOrder } from '../../types';
 import { formatDate, formatDateTime } from '../../lib/dateUtils';
+import { SupabaseImage } from '../SupabaseImage';
 
 export default function ViewServiceOrderModal({ order, onClose }: { order: ServiceOrder, onClose: () => void }) {
   const { getClientById, getVehicleById } = useAppStore();
@@ -24,7 +25,7 @@ export default function ViewServiceOrderModal({ order, onClose }: { order: Servi
           
           <div className="h-56 md:h-80 relative overflow-hidden shrink-0 group">
             {vehicle?.photo ? (
-               <img src={vehicle.photo} alt={vehicle.model} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+               <SupabaseImage src={vehicle.photo} alt={vehicle.model} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
             ) : (
                <div className="w-full h-full bg-[#1A1A1A] flex items-center justify-center">
                   <Car className="w-20 h-20 text-white/5" />
@@ -144,7 +145,7 @@ export default function ViewServiceOrderModal({ order, onClose }: { order: Servi
                                      <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar">
                                        {update.photos.map((p, j) => (
                                           <div key={j} className="w-24 h-24 shrink-0 rounded-xl overflow-hidden border border-white/10 relative group">
-                                             <img src={p} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 cursor-pointer" alt="update" />
+                                             <SupabaseImage src={p} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 cursor-pointer" alt="Foto da atualizacao" />
                                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
                                                 <Download size={20} className="text-white" />
                                              </div>

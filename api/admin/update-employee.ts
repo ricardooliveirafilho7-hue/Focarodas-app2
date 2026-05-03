@@ -12,6 +12,7 @@ import {
   toCamel,
   validateLoginAndPassword
 } from '../_utils/supabaseAdmin';
+import { requireAdmin } from '../_utils/authz';
 
 const allowedRoles = new Set(['Administrador', 'Gerente', 'Atendente', 'Tecnico', 'Técnico']);
 
@@ -21,6 +22,8 @@ export default async function handler(req: ApiRequest, res: any) {
 
   try {
     assertServerEnv();
+    if (!(await requireAdmin(req, res))) return;
+
     const body = readBody<any>(req.body);
     const id = String(body.id || '').trim();
     if (!id) return sendError(res, 400, 'ID do funcionario e obrigatorio.');
@@ -56,7 +59,9 @@ export default async function handler(req: ApiRequest, res: any) {
       email,
       user_metadata: {
         name,
-        login,
+        login
+      },
+      app_metadata: {
         role,
         panel: 'employee'
       }

@@ -43,7 +43,7 @@ export default function StaffApp() {
           <AlertTriangle size={16} className="text-yellow-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-bold text-yellow-300">
-              {isUsingLocalFallback ? 'Modo local ativo - dados não persistem online' : 'Erro de conexão com Supabase'}
+              {isUsingLocalFallback ? 'Modo local desativado' : 'Supabase indisponivel - salvamento bloqueado'}
             </p>
             {dataError && <p className="text-xs text-yellow-300/70 mt-1">{dataError}</p>}
           </div>

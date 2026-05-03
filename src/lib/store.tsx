@@ -106,83 +106,16 @@ interface AppContextType extends AppState {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-interface LocalData {
-  vehicles: Vehicle[];
-  serviceOrders: ServiceOrder[];
-  clients: Client[];
-  employees: Employee[];
-  logs: AuditLog[];
-  messages: Message[];
-  budgets: Budget[];
-  payments: Payment[];
-  notifications: Notification[];
-}
-
-const LOCAL_DATA_KEY = 'foca_local_data_v1';
-const defaultAdmin: Employee = {
-  id: 'admin1',
-  name: 'Administrador',
-  login: 'admin',
-  password: '123456',
-  email: 'admin@focarodas.com',
-  role: 'Administrador',
-  active: true
+const LEGACY_SESSION_ROLE_KEY = 'foca_role_v3';
+const LEGACY_SESSION_USER_KEY = 'foca_user_v3';
+const LEGACY_LOCAL_DATA_KEY = 'foca_local_data_v1';
+const LEGACY_SETTINGS_KEY = 'foca_settings';
+const clearLegacyLocalPersistence = () => {
+  localStorage.removeItem(LEGACY_SESSION_ROLE_KEY);
+  localStorage.removeItem(LEGACY_LOCAL_DATA_KEY);
+  localStorage.removeItem(LEGACY_SETTINGS_KEY);
+  localStorage.removeItem(LEGACY_SESSION_USER_KEY);
 };
-
-const emptyLocalData = (): LocalData => ({
-  vehicles: [],
-  serviceOrders: [],
-  clients: [],
-  employees: [defaultAdmin],
-  logs: [],
-  messages: [],
-  budgets: [],
-  payments: [],
-  notifications: []
-});
-
-const normalizeLocalData = (data: Partial<LocalData> | null | undefined): LocalData => {
-  const normalized: LocalData = {
-    ...emptyLocalData(),
-    ...(data || {}),
-    vehicles: Array.isArray(data?.vehicles) ? data.vehicles : [],
-    serviceOrders: Array.isArray(data?.serviceOrders) ? data.serviceOrders : [],
-    clients: Array.isArray(data?.clients) ? data.clients : [],
-    employees: Array.isArray(data?.employees) ? data.employees : [defaultAdmin],
-    logs: Array.isArray(data?.logs) ? data.logs : [],
-    messages: Array.isArray(data?.messages) ? data.messages : [],
-    budgets: Array.isArray(data?.budgets) ? data.budgets : [],
-    payments: Array.isArray(data?.payments) ? data.payments : [],
-    notifications: Array.isArray(data?.notifications) ? data.notifications : []
-  };
-
-  if (!normalized.employees.some(employee => employee.id === defaultAdmin.id)) {
-    normalized.employees.push(defaultAdmin);
-  }
-
-  return normalized;
-};
-
-const readLocalData = (): LocalData => {
-  try {
-    return normalizeLocalData(JSON.parse(localStorage.getItem(LOCAL_DATA_KEY) || 'null'));
-  } catch {
-    return emptyLocalData();
-  }
-};
-
-const writeLocalData = (data: LocalData) => {
-  localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(normalizeLocalData(data)));
-};
-
-const updateLocalData = (updater: (data: LocalData) => LocalData): LocalData => {
-  const next = normalizeLocalData(updater(readLocalData()));
-  writeLocalData(next);
-  return next;
-};
-
-const passwordMatches = (storedPassword: string | undefined, inputPass: string) =>
-  !storedPassword || storedPassword === inputPass;
 
 const cleanLogin = (value: string) =>
   String(value || '')
@@ -197,6 +130,14 @@ const authEmailFromLogin = (loginOrEmail: string) => {
   if (trimmed.includes('@')) return trimmed;
   return `${cleanLogin(trimmed).replace(/[^a-z0-9]/g, '')}@focarodas.com`;
 };
+
+const DEV_ADMIN_ID = 'dev-admin-focarodas';
+const isDevTestLoginEnabled =
+  import.meta.env.DEV &&
+  import.meta.env.VITE_ENABLE_DEV_TEST_LOGIN === 'true';
+const devAdminLogin = cleanLogin(import.meta.env.VITE_DEV_ADMIN_LOGIN || '');
+const devAdminPassword = import.meta.env.VITE_DEV_ADMIN_PASSWORD || '';
+const isDevTestAdmin = (user: CurrentUser) => user?.id === DEV_ADMIN_ID;
 
 const upsertById = <T extends { id: string }>(items: T[], item: T): T[] => {
   const index = items.findIndex(existing => existing.id === item.id);
@@ -216,9 +157,22 @@ const backendUnavailableMessage = () => {
 
 const apiPost = async <T extends object>(url: string, body: object): Promise<T & { success: boolean; error?: string }> => {
   try {
+    if (!isSupabaseConfigured) {
+      return { success: false, error: 'Supabase nao configurado. Salvamento bloqueado para evitar dados locais falsos.' } as T & { success: boolean; error?: string };
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) {
+      return { success: false, error: 'Sessao expirada. Entre novamente para continuar.' } as T & { success: boolean; error?: string };
+    }
+
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`
+      },
       body: JSON.stringify(body)
     });
     const payload = await response.json().catch(() => ({})) as Partial<T> & { success?: boolean; error?: string };
@@ -251,43 +205,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isUsingLocalFallback, setIsUsingLocalFallback] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
 
+  const requireSupabase = (action = 'salvar') => {
+    if (isSupabaseConfigured) return true;
+    const message = `Supabase nao configurado. Nao foi possivel ${action}; dados locais foram bloqueados para manter o banco como fonte unica da verdade.`;
+    setDataError(message);
+    toast.error(message);
+    return false;
+  };
+
   // Load session
   useEffect(() => {
     let cancelled = false;
     async function restoreSession() {
-      const savedRole = localStorage.getItem('foca_role_v3') as UserRole;
-      const savedUser = localStorage.getItem('foca_user_v3');
+      clearLegacyLocalPersistence();
 
       if (!isSupabaseConfigured) {
-        setIsUsingLocalFallback(true);
-        if (savedRole && savedUser) {
-          setRole(savedRole);
-          setCurrentUser(JSON.parse(savedUser));
-        }
+        setIsUsingLocalFallback(false);
+        setDataError('Supabase nao configurado. O app bloqueou o modo local para evitar salvamentos que nao aparecem em outros dispositivos.');
         return;
       }
 
-      const { data } = await supabase.auth.getSession();
-      const authUserId = data.session?.user?.id;
+      const { data, error } = await supabase.auth.getUser();
+      const authUserId = data.user?.id;
       if (!authUserId) {
-        if (savedRole && savedUser) {
-          const parsedUser = JSON.parse(savedUser);
-          if (parsedUser?.id === 'admin1') {
-            setRole(savedRole);
-            setCurrentUser(parsedUser);
-            setDataError('Sessao de teste local ativa. Para persistencia real, crie o usuario focarodas no Supabase Auth.');
-          }
+        if (error) {
+          console.warn('Supabase session restore failed', error);
         }
         return;
       }
 
-      const preferredTable = savedRole === 'CLIENT' ? 'clients' : 'employees';
-      const { data: row } = await supabase.from(preferredTable).select('*').eq('id', authUserId).maybeSingle();
-      if (cancelled || !row) return;
-      const mapped = preferredTable === 'clients' ? toCamel<Client>(row) : toCamel<Employee>(row);
-      setCurrentUser(mapped);
-      if (preferredTable === 'clients') setRole('CLIENT');
-      else setRole(savedRole === 'STAFF' ? 'STAFF' : 'ADMIN');
+      const [{ data: employeeRow }, { data: clientRow }] = await Promise.all([
+        supabase.from('employees').select('*').eq('id', authUserId).maybeSingle(),
+        supabase.from('clients').select('*').eq('id', authUserId).maybeSingle()
+      ]);
+
+      if (cancelled) return;
+
+      if (employeeRow) {
+        const employee = toCamel<Employee>(employeeRow);
+        setCurrentUser(employee);
+        setRole(employee.role === 'Administrador' || employee.role === 'Gerente' ? 'ADMIN' : 'STAFF');
+        return;
+      }
+
+      if (clientRow) {
+        setCurrentUser(toCamel<Client>(clientRow));
+        setRole('CLIENT');
+      }
     }
     void restoreSession();
     return () => {
@@ -303,29 +267,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      if (isDevTestAdmin(currentUser)) {
+        setIsUsingLocalFallback(false);
+        setDataError('Modo teste local ativo: login admin liberado sem salvamento local.');
+        setIsReady(true);
+        return;
+      }
+
       if (!isSupabaseConfigured) {
-        setIsUsingLocalFallback(true);
-        setDataError('Modo local ativo: configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para persistir no Supabase.');
-        const localData = readLocalData();
-        if (role === 'CLIENT') {
-          setClients(localData.clients.filter(client => client.id === currentUser.id));
-          setVehicles(localData.vehicles.filter(vehicle => vehicle.clientId === currentUser.id));
-          setServiceOrders(localData.serviceOrders.filter(order => order.clientId === currentUser.id));
-          setMessages(localData.messages.filter(message => message.clientId === currentUser.id));
-          setBudgets(localData.budgets.filter(budget => budget.clientId === currentUser.id && ['Enviado', 'Aprovado'].includes(budget.status)));
-          setPayments(localData.payments.filter(payment => payment.clientId === currentUser.id));
-          setNotifications(localData.notifications.filter(notification => !notification.clientId || notification.clientId === currentUser.id));
-        } else {
-          setClients(localData.clients);
-          setVehicles(localData.vehicles);
-          setServiceOrders(localData.serviceOrders);
-          setEmployees(localData.employees);
-          setMessages(localData.messages);
-          setBudgets(localData.budgets);
-          setPayments(localData.payments);
-          setNotifications(localData.notifications);
-        }
-        setLogs(localData.logs);
+        setIsUsingLocalFallback(false);
+        setDataError('Supabase nao configurado. Nenhum dado operacional sera lido ou salvo localmente.');
         setIsReady(true);
         return;
       }
@@ -370,14 +321,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (resClients.data) setClients(toCamel<Client[]>(resClients.data));
           if (resVehicles.data) setVehicles(toCamel<Vehicle[]>(resVehicles.data));
           if (resOrders.data) setServiceOrders(toCamel<ServiceOrder[]>(resOrders.data));
-          if (resEmps.data) {
-             const loadedEmps = toCamel<Employee[]>(resEmps.data);
-             // Ensure admin exists
-             if (!loadedEmps.find(employee => employee.id === 'admin1')) {
-                loadedEmps.push({ id: 'admin1', name: 'Administrador', login: 'admin', password: '123456', email: 'admin@focarodas.com', role: 'Administrador', active: true });
-             }
-             setEmployees(loadedEmps);
-          }
+          if (resEmps.data) setEmployees(toCamel<Employee[]>(resEmps.data));
           if (resMsgs.data) setMessages(toCamel<Message[]>(resMsgs.data));
           if (resLogs.data) setLogs(toCamel<AuditLog[]>(resLogs.data));
           if (resBudgets.data) setBudgets(toCamel<Budget[]>(resBudgets.data));
@@ -433,14 +377,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [role, currentUser]);
 
-  useEffect(() => {
-    if (role !== null) localStorage.setItem('foca_role_v3', role);
-    else localStorage.removeItem('foca_role_v3');
-    
-    if (currentUser !== null) localStorage.setItem('foca_user_v3', JSON.stringify(currentUser));
-    else localStorage.removeItem('foca_user_v3');
-  }, [role, currentUser]);
-
   const addLog = (action: string, target: string, type: 'edit' | 'add' | 'alert' | 'delete' | 'info', details?: string, targetId?: string) => {
     const newLog: AuditLog = {
       id: crypto.randomUUID(),
@@ -455,11 +391,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     setLogs(prev => [newLog, ...prev]);
     if (!isSupabaseConfigured) {
-      updateLocalData(data => ({ ...data, logs: [newLog, ...data.logs] }));
+      setLogs(prev => prev.filter(log => log.id !== newLog.id));
+      setDataError('Supabase nao configurado. Log de auditoria nao foi salvo.');
       return;
     }
     void supabase.from('audit_logs').insert([toSnake(newLog)]).then(({ error }) => {
-      if (error) console.error('Audit log save failed', error);
+      if (error) {
+        console.error('Audit log save failed', error);
+        setLogs(prev => prev.filter(log => log.id !== newLog.id));
+        setDataError(`Falha ao salvar log de auditoria no Supabase: ${error.message}`);
+      }
     });
   };
 
@@ -472,8 +413,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     if (!isSupabaseConfigured) {
-      updateLocalData(data => ({ ...data, notifications: [newNotification, ...data.notifications] }));
-      setNotifications(prev => upsertById(prev, newNotification));
+      setDataError('Supabase nao configurado. Notificacao nao foi salva.');
       return;
     }
 
@@ -492,72 +432,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!inputLogin || !inputPass) return { success: false, error: 'Login ou senha inválidos.' };
 
     try {
-      // 1. Admin hardcoded test bypass
-      if (panel === 'admin') {
-        const testLogin = inputLogin.toLowerCase().replace(/\s+/g, '');
-        if (testLogin === 'focarodas' && inputPass === '123456' && isSupabaseConfigured) {
-          const ensured = await apiPost<{ email?: string; employee?: Employee }>('/api/admin/ensure-test-admin', { login: 'focarodas', password: '123456' });
-          if (ensured.success && ensured.email) {
-            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-              email: ensured.email,
-              password: '123456'
-            });
-            if (!authError && authData.user && ensured.employee) {
-              setCurrentUser(ensured.employee);
-              setRole('ADMIN');
-              return { success: true };
-            }
-          }
-          setDataError(ensured.error || 'Nao foi possivel preparar o admin de teste no Supabase. Usando sessao local de teste.');
-        }
-
-        const testPass = inputPass.toLowerCase().replace(/\s+/g, '');
-        if ((testLogin === 'admin' || testLogin === 'focarodas') && (testPass === '123456' || testPass === 'focarodas' || testPass === 'admin')) {
-           const adminC = { id: 'admin1', name: 'Administrador FOCA RODAS', login: 'focarodas', password: '123456', email: 'focarodas@focarodas.com', role: 'Administrador', active: true };
-           setCurrentUser(adminC);
-           setRole('ADMIN');
-           return { success: true };
-        }
+      if (
+        isDevTestLoginEnabled &&
+        panel === 'admin' &&
+        devAdminLogin &&
+        devAdminPassword &&
+        cleanLogin(inputLogin) === devAdminLogin &&
+        inputPass === devAdminPassword
+      ) {
+        setCurrentUser({
+          id: DEV_ADMIN_ID,
+          name: 'Administrador Foca Rodas',
+          login: 'focarodas',
+          email: 'focarodas@local.test',
+          role: 'Administrador',
+          active: true,
+          createdAt: new Date().toISOString()
+        } satisfies Employee);
+        setRole('ADMIN');
+        setDataError('Modo teste local ativo: login admin liberado sem salvamento local.');
+        return { success: true };
       }
 
       if (!isSupabaseConfigured) {
-        const localData = readLocalData();
-        const loginKey = inputLogin.toLowerCase();
-
-        if (panel === 'cliente') {
-          const client = localData.clients.find(item =>
-            item.login?.toLowerCase() === loginKey || item.email?.toLowerCase() === loginKey
-          );
-
-          if (!client || !passwordMatches(client.password, inputPass)) {
-            return { success: false, error: 'Usuário não encontrado.' };
-          }
-          if (client.status === 'Inativo') return { success: false, error: 'Conta inativa.' };
-
-          setCurrentUser(client);
-          setRole('CLIENT');
-          return { success: true };
-        }
-
-        if (panel === 'funcionario' || panel === 'admin') {
-          const employee = localData.employees.find(item =>
-            item.login?.toLowerCase() === loginKey || item.email?.toLowerCase() === loginKey
-          );
-
-          if (!employee || !passwordMatches(employee.password, inputPass)) {
-            return { success: false, error: 'Usuário não encontrado.' };
-          }
-          if (!employee.active) return { success: false, error: 'Conta inativa.' };
-
-          if (panel === 'admin' && employee.role !== 'Administrador' && employee.role !== 'Gerente') {
-            return { success: false, error: 'Acesso negado ao painel administrador.' };
-          }
-
-          setCurrentUser(employee);
-          setRole(panel === 'admin' ? 'ADMIN' : 'STAFF');
-          return { success: true };
-        }
+        return { success: false, error: 'Supabase nao configurado. O login local foi removido para evitar dados que nao sincronizam entre dispositivos.' };
       }
+
 
       let authUserId: string | null = null;
 
@@ -672,25 +572,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     if (!isSupabaseConfigured) {
-      updateLocalData(data => ({
-        ...data,
-        serviceOrders: data.serviceOrders.map(order => order.id === serviceOrderId ? updatedOs : order)
-      }));
-      setServiceOrders(prev => prev.map(order => order.id === serviceOrderId ? updatedOs : order));
-      addLog('alterou o status da OS', `OS #${os.id} -> ${status}`, 'edit', internalNote, os.id);
-
-      if (notifyClient) {
-        await sendMessage({
-          clientId: updatedOs.clientId,
-          senderId: currentUser?.id || 'system',
-          senderRole: role || 'STAFF',
-          title: `Atualização de OS: ${status}`,
-          content: publicMessage || `O status do seu veículo mudou para ${status}.`,
-          type: 'info'
-        });
-      }
-      return;
+      throw new Error('Supabase nao configurado. Atualizacao bloqueada para evitar salvamento local.');
     }
+
     
     const { data, error } = await supabase.from('service_orders').update(toSnake(updatedOs)).eq('id', serviceOrderId).select().single();
     if (error) {
@@ -730,11 +614,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const createClient = async (client: Omit<Client, 'id'>) => {
     try {
       if (!isSupabaseConfigured) {
-        const directClient: Client = { ...client, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
-        updateLocalData(data => ({ ...data, clients: [...data.clients, directClient] }));
-        setClients(prev => upsertById(prev, directClient));
-        addLog('criou novo cliente', directClient.name, 'add', '', directClient.id);
-        return { success: true, client: directClient };
+        return { success: false, error: 'Supabase nao configurado. Cliente nao foi salvo.' };
       }
 
       const result = await apiPost<{ client?: Client }>('/api/admin/create-client', client);
@@ -755,12 +635,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateClient = async (id: string, updates: Partial<Client>) => {
     try {
       if (!isSupabaseConfigured) {
-        updateLocalData(data => ({
-          ...data,
-          clients: data.clients.map(client => client.id === id ? { ...client, ...updates } : client)
-        }));
-        setClients(prev => prev.map(client => client.id === id ? { ...client, ...updates } : client));
-        return true;
+        setDataError('Supabase nao configurado. Cliente nao foi atualizado.');
+        return false;
       }
 
       const result = await apiPost<{ client?: Client }>('/api/admin/update-client', { id, ...updates });
@@ -780,14 +656,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createVehicle = async (vehicle: Omit<Vehicle, 'id'>) => {
-    const newVehicleObj = { ...vehicle, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+    if (!requireSupabase('salvar o veiculo')) return null;
 
-    if (!isSupabaseConfigured) {
-      updateLocalData(data => ({ ...data, vehicles: [...data.vehicles, newVehicleObj] }));
-      setVehicles(prev => upsertById(prev, newVehicleObj));
-      addLog('cadastrou um veículo', `${vehicle.model} (${vehicle.plate})`, 'add', '', newVehicleObj.id);
-      return newVehicleObj;
-    }
+    const newVehicleObj = { ...vehicle, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
 
     const { data, error } = await supabase.from('vehicles').insert([toSnake(newVehicleObj)]).select().single();
     if (error) {
@@ -807,12 +678,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const updateVehicle = async (id: string, updates: Partial<Vehicle>) => {
     if (!isSupabaseConfigured) {
-      updateLocalData(data => ({
-        ...data,
-        vehicles: data.vehicles.map(vehicle => vehicle.id === id ? { ...vehicle, ...updates } : vehicle)
-      }));
-      setVehicles(prev => prev.map(vehicle => vehicle.id === id ? { ...vehicle, ...updates } : vehicle));
-      return true;
+      setDataError('Supabase nao configurado. Veiculo nao foi atualizado.');
+      return false;
     }
 
     const { data, error } = await supabase.from('vehicles').update(toSnake(updates)).eq('id', id).select().single();
@@ -831,10 +698,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const newOSObj: ServiceOrder = { ...os, id: crypto.randomUUID(), updates: [], createdAt: now, updatedAt: now };
 
     if (!isSupabaseConfigured) {
-      updateLocalData(data => ({ ...data, serviceOrders: [...data.serviceOrders, newOSObj] }));
-      setServiceOrders(prev => upsertById(prev, newOSObj));
-      addLog('criou uma OS', `OS #${newOSObj.id}`, 'add', os.servicesFull || '', newOSObj.id);
-      return newOSObj;
+      setDataError('Supabase nao configurado. Ordem de servico nao foi salva.');
+      return null;
     }
 
     const { data, error } = await supabase.from('service_orders').insert([toSnake(newOSObj)]).select().single();
@@ -863,12 +728,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateServiceOrder = async (id: string, updates: Partial<ServiceOrder>) => {
     const updatesWithTimestamp = { ...updates, updatedAt: new Date().toISOString() };
     if (!isSupabaseConfigured) {
-      updateLocalData(data => ({
-        ...data,
-        serviceOrders: data.serviceOrders.map(order => order.id === id ? { ...order, ...updatesWithTimestamp } : order)
-      }));
-      setServiceOrders(prev => prev.map(order => order.id === id ? { ...order, ...updatesWithTimestamp } : order));
-      return true;
+      setDataError('Supabase nao configurado. Ordem de servico nao foi atualizada.');
+      return false;
     }
 
     const { data, error } = await supabase.from('service_orders').update(toSnake(updatesWithTimestamp)).eq('id', id).select().single();
@@ -884,12 +745,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const createEmployee = async (emp: Omit<Employee, 'id'>) => {
     try {
-      const directEmployee: Employee = { ...emp, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
-
       if (!isSupabaseConfigured) {
-        updateLocalData(data => ({ ...data, employees: [...data.employees, directEmployee] }));
-        setEmployees(prev => upsertById(prev, directEmployee));
-        return { success: true, employee: directEmployee };
+        return { success: false, error: 'Supabase nao configurado. Funcionario nao foi salvo.' };
       }
 
       const result = await apiPost<{ employee?: Employee }>('/api/admin/create-employee', emp);
@@ -911,12 +768,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateEmployee = async (id: string, updates: Partial<Employee>) => {
     try {
       if (!isSupabaseConfigured) {
-        updateLocalData(data => ({
-          ...data,
-          employees: data.employees.map(employee => employee.id === id ? { ...employee, ...updates } : employee)
-        }));
-        setEmployees(prev => prev.map(employee => employee.id === id ? { ...employee, ...updates } : employee));
-        return true;
+        setDataError('Supabase nao configurado. Funcionario nao foi atualizado.');
+        return false;
       }
 
       const result = await apiPost<{ employee?: Employee }>('/api/admin/update-employee', { id, ...updates });
@@ -939,10 +792,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
      const newMsg = { ...msg, id: crypto.randomUUID(), createdAt: new Date().toISOString(), read: false };
 
      if (!isSupabaseConfigured) {
-        updateLocalData(data => ({ ...data, messages: [newMsg, ...data.messages] }));
-        setMessages(prev => upsertById(prev, newMsg));
-        toast.success("Mensagem enviada com sucesso.");
-        return true;
+        setDataError('Supabase nao configurado. Mensagem nao foi enviada.');
+        return false;
      }
 
      const { data, error } = await supabase.from('messages').insert([toSnake(newMsg)]).select().single();
@@ -965,11 +816,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   
   const markMessageAsRead = async (id: string) => {
      if (!isSupabaseConfigured) {
-       updateLocalData(data => ({
-         ...data,
-         messages: data.messages.map(message => message.id === id ? { ...message, read: true } : message)
-       }));
-       setMessages(prev => prev.map(message => message.id === id ? { ...message, read: true } : message));
+       setDataError('Supabase nao configurado. Leitura da mensagem nao foi salva.');
        return;
      }
 
@@ -980,11 +827,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const markNotificationAsRead = async (id: string) => {
     if (!isSupabaseConfigured) {
-      updateLocalData(data => ({
-        ...data,
-        notifications: data.notifications.map(notification => notification.id === id ? { ...notification, read: true } : notification)
-      }));
-      setNotifications(prev => prev.map(notification => notification.id === id ? { ...notification, read: true } : notification));
+      setDataError('Supabase nao configurado. Leitura da notificacao nao foi salva.');
       return;
     }
     const { error } = await supabase.from('notifications').update(toSnake({ read: true })).eq('id', id);
@@ -1008,10 +851,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     if (!isSupabaseConfigured) {
-      updateLocalData(data => ({ ...data, budgets: [newBudget, ...data.budgets] }));
-      setBudgets(prev => upsertById(prev, newBudget));
-      addLog('criou orçamento', `Orçamento #${newBudget.id}`, 'add', '', newBudget.id);
-      return newBudget;
+      setDataError('Supabase nao configurado. Orcamento nao foi salvo.');
+      return null;
     }
 
     const { data, error } = await supabase.from('budgets').insert([toSnake(newBudget)]).select().single();
@@ -1035,9 +876,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const totals = updates.items || updates.discount !== undefined ? computeBudgetTotals({ ...budgets.find(b => b.id === id), ...updates }) : {};
     const payload = { ...updates, ...totals, updatedAt: new Date().toISOString() };
     if (!isSupabaseConfigured) {
-      updateLocalData(data => ({ ...data, budgets: data.budgets.map(budget => budget.id === id ? { ...budget, ...payload } : budget) }));
-      setBudgets(prev => prev.map(budget => budget.id === id ? { ...budget, ...payload } : budget));
-      return true;
+      setDataError('Supabase nao configurado. Orcamento nao foi atualizado.');
+      return false;
     }
     const { data, error } = await supabase.from('budgets').update(toSnake(payload)).eq('id', id).select().single();
     if (error) {
@@ -1056,10 +896,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     if (!isSupabaseConfigured) {
-      updateLocalData(data => ({ ...data, payments: [newPayment, ...data.payments] }));
-      setPayments(prev => upsertById(prev, newPayment));
-      addLog('registrou pagamento', `Pagamento #${newPayment.id}`, 'add', String(newPayment.amount), newPayment.id);
-      return newPayment;
+      setDataError('Supabase nao configurado. Pagamento nao foi salvo.');
+      return null;
     }
 
     const { data, error } = await supabase.from('payments').insert([toSnake(newPayment)]).select().single();
@@ -1076,9 +914,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updatePayment = async (id: string, updates: Partial<Payment>) => {
     const payload = { ...updates, updatedAt: new Date().toISOString() };
     if (!isSupabaseConfigured) {
-      updateLocalData(data => ({ ...data, payments: data.payments.map(payment => payment.id === id ? { ...payment, ...payload } : payment) }));
-      setPayments(prev => prev.map(payment => payment.id === id ? { ...payment, ...payload } : payment));
-      return true;
+      setDataError('Supabase nao configurado. Pagamento nao foi atualizado.');
+      return false;
     }
     const { data, error } = await supabase.from('payments').update(toSnake(payload)).eq('id', id).select().single();
     if (error) {

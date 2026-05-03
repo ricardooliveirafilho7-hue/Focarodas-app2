@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAppStore } from '../lib/store';
 import { Bell, Home, Car, MessageCircle, User as UserIcon, LogOut, Check } from 'lucide-react';
 import { formatDate, formatDateTime } from '../lib/dateUtils';
+import { SupabaseImage } from './SupabaseImage';
 
 const CLIENT_STEPS = ['Recebido', 'Em andamento', 'Pronto', 'Finalizado', 'Retirada'] as const;
 
@@ -71,7 +72,7 @@ export default function ClientApp() {
                   onClick={() => { setSelectedOrderId(activeOrder?.id || null); setActiveTab('Detalhes'); }}
                 >
                   <div className="relative h-64 md:h-80 w-full bg-black">
-                    <img 
+                    <SupabaseImage
                       src={activeVehicle?.photo || 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=800'} 
                       alt={activeVehicle?.model} 
                       className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700"
@@ -194,7 +195,7 @@ export default function ClientApp() {
               </div>
 
               {activeOrder.updates.length > 0 && activeOrder.updates[0].publicMessage && (
-                <div className="mt-8 bg-[var(--color-brand-red)]/5 border border-[var(--color-brand-red)]/20 p-5 rounded-２xl flex gap-4 animate-in fade-in slide-in-from-bottom-4">
+                <div className="mt-8 bg-[var(--color-brand-red)]/5 border border-[var(--color-brand-red)]/20 p-5 rounded-2xl flex gap-4 animate-in fade-in slide-in-from-bottom-4">
                    <div className="w-8 h-8 rounded-full bg-[var(--color-brand-red)]/20 flex items-center justify-center shrink-0">
                       <MessageCircle className="w-4 h-4 text-[var(--color-brand-red)]" />
                    </div>
@@ -217,7 +218,7 @@ export default function ClientApp() {
                 <div className="flex overflow-x-auto hide-scrollbar gap-4 px-2 snap-x pb-4">
                   {activeOrder.updates.flatMap(u => u.photos || []).map((img, i) => (
                     <div key={i} className="w-48 h-48 md:w-64 md:h-64 shrink-0 snap-center rounded-[2rem] overflow-hidden bg-black border border-white/5 shadow-xl relative group">
-                      <img src={img} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                      <SupabaseImage src={img} alt="Foto do servico" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                     </div>
                   ))}
                 </div>

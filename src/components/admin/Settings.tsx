@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Store, ListFilter, MessageSquareText, Bell, MonitorSmartphone, Image as ImageIcon, Save, Check } from 'lucide-react';
 import { ConfirmModal } from '../ConfirmModal';
+import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 
 interface CompanyData {
   companyName?: string;
@@ -9,20 +10,58 @@ interface CompanyData {
   address?: string;
 }
 
-const readCompanySettings = (): CompanyData => {
-  try {
-    return JSON.parse(localStorage.getItem('foca_settings') || '{}') as CompanyData;
-  } catch {
-    return {};
-  }
-};
+const SETTINGS_ID = 'default';
+
+const fromRow = (row: Record<string, unknown> | null): CompanyData => ({
+  companyName: String(row?.company_name || ''),
+  document: String(row?.document || ''),
+  phone: String(row?.phone || ''),
+  address: String(row?.address || '')
+});
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('empresa');
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
-  const [companyData, setCompanyData] = useState<CompanyData>(() => readCompanySettings());
+  const [companyData, setCompanyData] = useState<CompanyData>({});
+  const [savedCompanyData, setSavedCompanyData] = useState<CompanyData>({});
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSettings = async () => {
+      setError('');
+      if (!isSupabaseConfigured) {
+        setError('Supabase nao configurado. Configuracoes locais foram desativadas.');
+        return;
+      }
+
+      const { data, error: loadError } = await supabase
+        .from('company_settings')
+        .select('company_name, document, phone, address')
+        .eq('id', SETTINGS_ID)
+        .maybeSingle();
+
+      if (!active) return;
+
+      if (loadError) {
+        setError(`Nao foi possivel carregar configuracoes do Supabase: ${loadError.message}`);
+        return;
+      }
+
+      const next = fromRow(data);
+      setCompanyData(next);
+      setSavedCompanyData(next);
+    };
+
+    void loadSettings();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const tabs = [
     { id: 'empresa', label: 'Dados da Empresa', icon: Store },
@@ -32,10 +71,32 @@ export default function Settings() {
     { id: 'portal', label: 'Portal do Cliente', icon: MonitorSmartphone },
   ];
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
+    setError('');
     try {
-      localStorage.setItem('foca_settings', JSON.stringify(companyData));
+      if (!isSupabaseConfigured) {
+        setError('Supabase nao configurado. Nada foi salvo localmente.');
+        return;
+      }
+
+      const { error: saveError } = await supabase
+        .from('company_settings')
+        .upsert({
+          id: SETTINGS_ID,
+          company_name: companyData.companyName || null,
+          document: companyData.document || null,
+          phone: companyData.phone || null,
+          address: companyData.address || null,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+      if (saveError) {
+        setError(`Nao foi possivel salvar no Supabase: ${saveError.message}`);
+        return;
+      }
+
+      setSavedCompanyData(companyData);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } finally {
@@ -56,11 +117,11 @@ export default function Settings() {
       {showDiscardConfirm && (
         <ConfirmModal
           title="Descartar alterações?"
-          message="Os campos serão recarregados a partir dos dados salvos neste navegador."
+          message="Os campos serao recarregados a partir dos dados salvos no Supabase."
           confirmLabel="Descartar"
           onCancel={() => setShowDiscardConfirm(false)}
           onConfirm={() => {
-            setCompanyData(readCompanySettings());
+            setCompanyData(savedCompanyData);
             setShowDiscardConfirm(false);
           }}
         />
@@ -102,6 +163,12 @@ export default function Settings() {
                  <h3 className="text-2xl font-black mb-1 text-white tracking-tight">Informações da Oficina</h3>
                  <p className="text-white/40 text-sm font-medium">Esses dados aparecerão em orçamentos e recibos para os clientes.</p>
                </div>
+
+               {error && (
+                 <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl px-4 py-3 text-sm text-yellow-200">
+                   {error}
+                 </div>
+               )}
 
                <div className="flex items-center gap-6 bg-[#151515] p-5 rounded-2xl border border-white/5">
                  <div className="w-24 h-24 bg-[#111] border border-white/10 rounded-2xl flex flex-col items-center justify-center text-white/30 cursor-pointer hover:border-[#E53935]/50 transition-colors shadow-inner">

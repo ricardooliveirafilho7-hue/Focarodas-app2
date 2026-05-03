@@ -12,6 +12,7 @@ import {
   toCamel,
   validateLoginAndPassword
 } from '../_utils/supabaseAdmin';
+import { requireAdmin } from '../_utils/authz';
 
 const allowedStatuses = new Set(['Ativo', 'Aguardando', 'Inativo']);
 
@@ -21,6 +22,8 @@ export default async function handler(req: ApiRequest, res: any) {
 
   try {
     assertServerEnv();
+    if (!(await requireAdmin(req, res))) return;
+
     const body = readBody<any>(req.body);
     const name = String(body.name || '').trim();
     const phone = String(body.phone || '').trim();
@@ -43,7 +46,9 @@ export default async function handler(req: ApiRequest, res: any) {
       email_confirm: true,
       user_metadata: {
         name,
-        login,
+        login
+      },
+      app_metadata: {
         panel: 'client'
       }
     });
